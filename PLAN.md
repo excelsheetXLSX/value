@@ -3,6 +3,9 @@
 Read `CLAUDE.md` first — it holds the invariants. Work phases in order; each
 phase should leave the app working.
 
+**Status:** Phases 0-2 are done. Live at https://excelsheetxlsx.github.io/unit-price/
+(GitHub Pages, `main` branch). Phase 3 is waiting on real use in a store.
+
 ---
 
 ## Phase 0 — Set up the repo
