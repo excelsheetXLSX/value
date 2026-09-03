@@ -1,0 +1,11 @@
+{
+  "name": "unit-price",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Grocery unit-price comparator. Static PWA, no build step.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "serve": "python -m http.server 8123"
+  }
+}

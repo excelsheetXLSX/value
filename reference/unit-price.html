@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F3EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101412" media="(prefers-color-scheme: dark)">
+<title>Unit price</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens ---------- */
+:root{
+  --bg:#F2F3EF; --surface:#FFFFFF; --surface-2:#E8EBE5; --surface-3:#DCE0D8;
+  --on:#191C1A; --muted:#5A625C; --outline:#C3C9C1;
+  --primary:#00786A; --on-primary:#FFFFFF; --primary-container:#9BF5E3;
+  --danger:#D32215;
+  --tint:18%; --row-tint:13%; --field-tint:9%;
+  --e1:0 1px 2px rgba(25,28,26,.12), 0 1px 3px 1px rgba(25,28,26,.06);
+  --e2:0 2px 6px 2px rgba(25,28,26,.08), 0 1px 2px rgba(25,28,26,.12);
+  --r-lg:28px; --r-md:20px; --r-sm:14px; --r-xs:10px;
+}
+html[data-theme="dark"]{
+  --bg:#101412; --surface:#1A201D; --surface-2:#252D29; --surface-3:#303935;
+  --on:#E3E7E2; --muted:#A2ABA5; --outline:#3B443F;
+  --primary:#46C9AC; --on-primary:#00382F; --primary-container:#00594B;
+  --danger:#FF8A80;
+  --tint:26%; --row-tint:19%; --field-tint:12%;
+  --e1:none; --e2:none;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--on);
+  font-family:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-variant-numeric:tabular-nums lining;
+  font-size:16px; line-height:1.45;
+  padding:0 14px calc(28px + env(safe-area-inset-bottom));
+  max-width:560px; margin:0 auto;
+  -webkit-text-size-adjust:100%;
+}
+button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums lining}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+
+/* ---------- top bar ---------- */
+.bar{
+  position:sticky; top:0; z-index:20; background:var(--bg);
+  display:flex; align-items:center; gap:8px;
+  padding:calc(10px + env(safe-area-inset-top)) 0 10px;
+}
+.bar h1{
+  flex:1; margin:0; font-size:23px; font-weight:800; letter-spacing:-.025em;
+}
+.icon-btn{
+  width:48px; height:48px; flex:none; border:0; border-radius:50%;
+  background:transparent; display:grid; place-items:center; cursor:pointer;
+}
+.icon-btn:active{background:var(--surface-2)}
+.text-btn{
+  min-height:48px; padding:0 18px; border:0; border-radius:999px;
+  background:var(--surface-2); color:var(--on); font-weight:600; font-size:15px; cursor:pointer;
+}
+.text-btn:active{background:var(--surface-3)}
+.text-btn[disabled]{opacity:.38;pointer-events:none}
+
+/* ---------- winner ---------- */
+#winner{
+  --rc:var(--outline); --rc-edge:var(--outline);
+  border-radius:var(--r-lg); padding:22px 22px 20px 22px; margin-bottom:12px;
+  background:var(--surface);
+  border-left:14px solid var(--rc);
+  box-shadow:var(--e2), inset 2px 0 0 var(--rc-edge);
+  min-height:132px; display:flex; flex-direction:column; justify-content:center;
+}
+#winner.live{
+  background:color-mix(in srgb, var(--rc) var(--tint), var(--surface));
+}
+#winner.live{
+  background:color-mix(in srgb, var(--rc) var(--tint), var(--surface));
+}
+#winner.flash{animation:pop .28s ease-out}
+@keyframes pop{0%{transform:scale(.985)}60%{transform:scale(1.008)}100%{transform:scale(1)}}
+.w-name{font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:none;
+  color:var(--muted);margin-bottom:4px}
+.w-price{
+  display:flex; align-items:baseline; gap:9px; margin:0 0 8px;
+}
+.w-num{
+  font-size:clamp(42px,13.5vw,58px); font-weight:800; line-height:.95;
+  letter-spacing:-.035em;
+}
+.w-unit{font-size:15px;font-weight:700;color:var(--muted)}
+.w-sub{font-size:14px;color:var(--muted)}
+.w-sub b{color:var(--on);font-weight:600}
+.w-empty{font-size:16px;color:var(--muted);font-weight:500}
+
+/* ---------- lock chip ---------- */
+#lock{
+  display:none; align-items:center; gap:8px; margin:0 0 14px;
+  padding:11px 16px; border-radius:var(--r-sm);
+  background:var(--primary-container); color:var(--on);
+  font-size:13.5px; font-weight:500; line-height:1.35;
+}
+#lock.on{display:flex}
+#lock svg{flex:none}
+
+/* ---------- rows ---------- */
+.rows{display:flex;flex-direction:column;gap:10px}
+.row{
+  background:var(--surface); border-radius:var(--r-md);
+  border-left:11px solid var(--rc);
+  box-shadow:var(--e1), inset 2px 0 0 var(--rc-edge);
+  padding:10px 12px 12px 14px;
+}
+.row.excluded{opacity:.55}
+.row.filled{background:color-mix(in srgb, var(--rc) var(--row-tint), var(--surface))}
+.row.filled .field input,
+.row.filled .field .unit-btn{background:color-mix(in srgb, var(--rc) var(--field-tint), var(--surface-2))}
+.row.filled .field input:focus,
+.row.filled .field .unit-btn:active{background:color-mix(in srgb, var(--rc) calc(var(--field-tint) * 2), var(--surface-2))}
+.row-name .untitled{color:var(--muted);font-weight:500}
+.row-top{display:flex;align-items:center;gap:10px;min-height:32px}
+.row-name{flex:1;font-size:15px;font-weight:600;letter-spacing:.01em;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-calc{font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap}
+.row-calc.best{color:var(--on)}
+.row-note{font-size:12.5px;font-weight:500;color:var(--danger);white-space:nowrap}
+.row-clear{
+  width:36px;height:36px;flex:none;border:0;border-radius:50%;background:transparent;
+  display:grid;place-items:center;cursor:pointer;color:var(--muted);
+}
+.row-clear:active{background:var(--surface-2)}
+.row-clear[disabled]{opacity:.25;pointer-events:none}
+.fields{display:grid;grid-template-columns:1fr 96px 1fr;gap:8px;margin-top:8px}
+.field{position:relative}
+.field input,.field .unit-btn{
+  width:100%; height:54px; padding:19px 12px 5px; border:1.5px solid transparent;
+  border-radius:var(--r-sm);
+  background:var(--surface-2);
+  font-size:16px; font-weight:600;
+}
+.field .unit-btn{text-align:left;cursor:pointer;display:block;line-height:1}
+.field .unit-btn.empty{color:var(--outline);font-weight:500}
+.field input:focus,.field .unit-btn:focus-visible{
+  outline:none;border-color:var(--rc-edge);background:var(--surface-3);
+}
+.field .unit-btn:active{background:var(--surface-3)}
+.field label{
+  position:absolute; left:13px; top:7px; font-size:11px; font-weight:600;
+  color:var(--muted); letter-spacing:.03em; pointer-events:none;
+}
+
+/* ---------- unit sheet ---------- */
+#scrim{
+  position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.45);
+  opacity:0; pointer-events:none; transition:opacity .2s;
+}
+#scrim.open{opacity:1;pointer-events:auto}
+#sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:41;
+  max-width:560px; margin:0 auto;
+  background:var(--surface); color:var(--on);
+  border-top:4px solid var(--rc);
+  box-shadow:0 -4px 24px rgba(0,0,0,.22), inset 0 4px 0 -3px var(--rc-edge);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  padding:8px 16px calc(18px + env(safe-area-inset-bottom));
+  transform:translateY(101%); transition:transform .24s cubic-bezier(.2,0,0,1), visibility .24s;
+  visibility:hidden;
+}
+#sheet.open{transform:translateY(0);visibility:visible}
+.grip{width:34px;height:4px;border-radius:2px;background:var(--rc);opacity:.5;margin:6px auto 14px}
+.sheet-head{display:flex;align-items:baseline;gap:12px;margin:0 2px 16px}
+.sheet-head h2{margin:0;font-size:19px;font-weight:700;flex:1;color:var(--on);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-head .clr{border:0;background:transparent;color:var(--muted);font-size:14px;font-weight:600;
+  cursor:pointer;padding:8px;margin:-8px}
+.ugroup{padding-bottom:16px}
+.ugroup:last-child{padding-bottom:2px}
+.ugroup h3{margin:0 2px 8px;font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.ugroup.off h3{color:var(--outline)}
+.ugroup .why{margin:9px 2px 0;font-size:12.5px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips.single{grid-template-columns:1fr}
+.chip{
+  min-height:58px; padding:0 12px; border:1.5px solid var(--outline);
+  border-radius:var(--r-sm); background:transparent; font-size:17px; font-weight:600;
+  cursor:pointer;
+}
+.chip[aria-pressed=true]{
+  background:color-mix(in srgb, var(--rc) var(--tint), var(--surface));
+  border-color:var(--rc-edge); border-width:2px; color:var(--on);
+}
+.chip[disabled]{opacity:.32;pointer-events:none}
+.chip:active{background:var(--surface-2)}
+
+/* ---------- manage ---------- */
+details.manage{margin-top:22px;border-radius:var(--r-md);background:var(--surface);box-shadow:var(--e1);overflow:hidden}
+details.manage>summary{
+  list-style:none;cursor:pointer;min-height:56px;display:flex;align-items:center;
+  gap:10px;padding:0 16px;font-size:15px;font-weight:600;
+}
+details.manage>summary::-webkit-details-marker{display:none}
+details.manage>summary .chev{margin-left:auto;transition:transform .2s}
+details.manage[open]>summary .chev{transform:rotate(180deg)}
+.manage-body{padding:4px 12px 14px;border-top:1px solid var(--outline)}
+.mr{display:flex;align-items:center;gap:8px;padding:8px 0}
+.mr input[type=text]{
+  flex:1;min-width:0;height:48px;padding:0 12px;border:1px solid var(--outline);
+  border-radius:var(--r-xs);background:transparent;font-size:16px;font-weight:500;
+}
+.swatch{
+  width:44px;height:44px;flex:none;border-radius:50%;border:0;cursor:pointer;
+  background:var(--rc);box-shadow:inset 0 0 0 2px var(--surface),inset 0 0 0 4px var(--rc);
+}
+.mini{
+  width:40px;height:44px;flex:none;border:0;border-radius:var(--r-xs);
+  background:var(--surface-2);cursor:pointer;display:grid;place-items:center;color:var(--muted);
+}
+.mini:active{background:var(--surface-3)}
+.mini[disabled]{opacity:.28;pointer-events:none}
+.mini.del{color:var(--danger)}
+.mr.hidden .swatch,.mr.hidden input[type=text]{opacity:.42}
+.mr .eye.off{color:var(--outline)}
+.palette{display:none;flex-wrap:wrap;gap:10px;padding:6px 2px 12px}
+.palette.open{display:flex}
+.palette button{
+  width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;
+  box-shadow:inset 0 0 0 3px var(--surface);
+}
+.palette button[aria-pressed=true]{box-shadow:inset 0 0 0 3px var(--surface),0 0 0 3px var(--on)}
+.add{
+  width:100%;min-height:52px;margin-top:10px;border:1px dashed var(--outline);
+  border-radius:var(--r-sm);background:transparent;color:var(--primary);
+  font-weight:600;font-size:15px;cursor:pointer;
+}
+.add:active{background:var(--surface-2)}
+.add.reset{color:var(--muted);border-style:solid;margin-top:6px;font-weight:500}
+.add.reset.armed{color:var(--danger);border-color:var(--danger);font-weight:600}
+.hint{font-size:13px;color:var(--muted);margin:14px 2px 0;text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>Unit price</h1>
+  <button class="icon-btn" id="theme" aria-label="Switch theme">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+  </button>
+  <button class="text-btn" id="clearAll" disabled>Clear all</button>
+</header>
+
+<section id="winner" aria-live="polite">
+  <div class="w-empty">Fill in a row to start comparing.</div>
+</section>
+
+<div id="lock">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 9V7a5 5 0 0 0-10 0v2H5v12h14V9Zm-8-2a3 3 0 0 1 6 0v2H9Z"/></svg>
+  <span id="lockText"></span>
+</div>
+
+<div class="rows" id="rows"></div>
+
+<details class="manage">
+  <summary>
+    Manage retailers
+    <svg class="chev" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5Z"/></svg>
+  </summary>
+  <div class="manage-body" id="manageBody"></div>
+</details>
+
+<p class="hint">Prices normalise to a litre, a kilo, or a piece.</p>
+
+<div id="scrim"></div>
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="grip"></div>
+  <div class="sheet-head">
+    <h2 id="sheetTitle">Unit</h2>
+    <button class="clr" id="sheetClear">Clear</button>
+  </div>
+  <div id="sheetGroups"></div>
+</div>
+
+<script>
+/* ============ storage: artifact API, falls back to localStorage ============ */
+const store = {
+  async get(k){
+    try{ if(window.storage){ const r = await window.storage.get(k,false); return r ? JSON.parse(r.value) : null; } }catch(e){}
+    try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }catch(e){ return null; }
+  },
+  async set(k,v){
+    try{ if(window.storage){ await window.storage.set(k, JSON.stringify(v), false); return; } }catch(e){}
+    try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){}
+  }
+};
+
+/* ============ units — verified math ============ */
+const UNITS = {
+  ml:{dim:'volume',to:1,   label:'ml'},
+  L: {dim:'volume',to:1000,label:'L'},
+  g: {dim:'mass',  to:1,   label:'g'},
+  kg:{dim:'mass',  to:1000,label:'kg'},
+  pc:{dim:'count', to:1,   label:'pc'}
+};
+const DISPLAY = {volume:{unit:'L',per:1000},mass:{unit:'kg',per:1000},count:{unit:'pc',per:1}};
+const DIM_NAME = {volume:'volume',mass:'weight',count:'pieces'};
+/* weight <-> volume needs the product's density, which we don't know,
+   so the round is locked to whichever kind the first filled row used */
+const LOCK_COPY = {
+  mass:  'Comparing per kg — volume needs a density to convert',
+  volume:'Comparing per L — weight needs a density to convert',
+  count: 'Comparing per piece — weight and volume don’t apply'
+};
+const CANT = {
+  mass:  'Needs a density to convert to kg',
+  volume:'Needs a density to convert to L',
+  count: 'Doesn’t convert to pieces'
+};
+
+function unitPrice(amount, unitKey, price){
+  const u = UNITS[unitKey];
+  if(!u) return null;
+  const base = amount * u.to;
+  if(!(base > 0) || !(price > 0)) return null;
+  return (price / base) * DISPLAY[u.dim].per;
+}
+function num(s){
+  if(typeof s !== 'string') return NaN;
+  const t = s.replace(/,/g,'.').trim();
+  if(!t || !/^\d*\.?\d*$/.test(t)) return NaN;
+  return parseFloat(t);
+}
+function fmt(v){
+  const d = v >= 1 ? 2 : (v >= 0.01 ? 3 : 4);
+  return v.toFixed(d);
+}
+/* relative epsilon — raw floats drift ~1e-17 on equivalent inputs */
+const eq = (a,b) => Math.abs(a-b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+
+/* ============ state ============ */
+const PALETTE = ['#004A97','#00A650','#FEEE00','#FF9900','#4E3080','#D8232A','#12A5A5','#D65D9A','#00A3E0','#7CB518'];
+const DEFAULTS = [
+  {name:'Lulu',      color:'#00A650'},
+  {name:'Carrefour', color:'#004A97'},
+  {name:'Noon',      color:'#FEEE00'},
+  {name:'Amazon.ae', color:'#FF9900'},
+  {name:'ADCOOP',    color:'#4E3080'}
+];
+
+const DATA_VERSION = 4;
+/* saved rosters aren't rebuilt from DEFAULTS, so changes to the shipped
+   list need a migration keyed to the version that introduced them */
+const MIGRATIONS = {
+  2: s => s.retailers.forEach(r => {
+    if(r.name === 'Union Coop'){ r.name = 'ADCOOP'; r.color = '#4E3080'; }
+  }),
+  3: s => {
+    /* reorder the shipped retailers, leaving any the user added after them */
+    const want = ['Lulu','Carrefour','Noon','Amazon.ae','ADCOOP'];
+    const rank = r => { const i = want.indexOf(r.name.trim()); return i === -1 ? want.length : i; };
+    s.retailers.sort((a,b) => rank(a) - rank(b));
+    /* 'dozen' no longer exists — drop it rather than leave a dangling unit */
+    for(const id in (s.values||{})) if(s.values[id].unit === 'dz') s.values[id].unit = '';
+  },
+  4: s => {
+    /* real brand colours, sampled from logos or brand guidelines */
+    const brand = {Lulu:'#00A650', Carrefour:'#004A97', Noon:'#FEEE00',
+                   'Amazon.ae':'#FF9900', ADCOOP:'#4E3080'};
+    s.retailers.forEach(r => { const c = brand[r.name.trim()]; if(c) r.color = c; });
+  }
+};
+function migrate(saved){
+  const from = saved.version || 1;
+  for(let v = from + 1; v <= DATA_VERSION; v++) if(MIGRATIONS[v]) MIGRATIONS[v](saved);
+}
+
+/* Brand colours must render exactly as the brand uses them — Noon's yellow is
+   #FEEE00, not a darkened gold. But a bright colour on a white surface is
+   nearly invisible, so instead of dimming the colour we keep it at full
+   strength and derive a same-hue EDGE colour, dark enough to outline it.
+   Noon does the same thing: yellow fill, near-black paired with it. */
+const cbrt = Math.cbrt, cl = (v,a=0,b=1) => Math.min(b, Math.max(a,v));
+const s2l = v => v <= .04045 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4);
+const l2s = v => v <= .0031308 ? v*12.92 : 1.055*Math.pow(v,1/2.4) - .055;
+function hex2rgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]; }
+function rgb2hex(r,g,b){ return '#' + [r,g,b].map(v => Math.round(cl(v)*255).toString(16).padStart(2,'0')).join(''); }
+function oklch(hex){
+  const [r,g,b] = hex2rgb(hex).map(s2l);
+  const l = cbrt(.4122214708*r + .5363325363*g + .0514459929*b),
+        m = cbrt(.2119034982*r + .6806995451*g + .1073969566*b),
+        s = cbrt(.0883024619*r + .2817188376*g + .6299787005*b);
+  const L = .2104542553*l + .7936177850*m - .0040720468*s,
+        A = 1.9779984951*l - 2.4285922050*m + .4505937099*s,
+        B = .0259040371*l + .7827717662*m - .8086757660*s;
+  return {L, C:Math.hypot(A,B), h:Math.atan2(B,A)};
+}
+function oklchRGB(L,C,h){
+  const A = C*Math.cos(h), B = C*Math.sin(h);
+  const l = (L + .3963377774*A + .2158037573*B)**3,
+        m = (L - .1055613458*A - .0638541728*B)**3,
+        s = (L - .0894841775*A - 1.2914855480*B)**3;
+  return [ 4.0767416621*l - 3.3077115913*m + .2309699292*s,
+          -1.2684380046*l + 2.6097574011*m - .3413193965*s,
+          -.0041960863*l - .7034186147*m + 1.7076147010*s];
+}
+const inGamut = c => c.every(v => v >= -.001 && v <= 1.001);
+function fromOklch(L,C,h){
+  let c = C;                                   /* back off chroma only as far as gamut demands */
+  for(let i=0; i<60 && !inGamut(oklchRGB(L,c,h)); i++) c *= .96;
+  const [r,g,b] = oklchRGB(L,c,h).map(l2s);
+  return rgb2hex(r,g,b);
+}
+function lum(hex){ const [r,g,b] = hex2rgb(hex).map(s2l); return .2126*r + .7152*g + .0722*b; }
+function contrast(a,b){ const [x,y] = [lum(a),lum(b)].sort((m,n) => n-m); return (x+.05)/(y+.05); }
+
+/* the outline colour: same hue, moved in OKLCH only until it clears 3:1 */
+function edgeColor(hex){
+  if(!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const surface = dark ? '#1A201D' : '#FFFFFF';
+  if(contrast(hex, surface) >= 3.05) return hex;   /* already visible — leave it alone */
+  let {L,C,h} = oklch(hex);
+  const dir = dark ? 1 : -1;
+  let out = fromOklch(L,C,h);
+  for(let i=0; i<60 && contrast(out,surface) < 3.05; i++){
+    L = cl(L + dir*.012, .05, .99);
+    out = fromOklch(L,C,h);
+  }
+  return out;
+}
+/* Dark mode: a raw brand colour can be far brighter against a dark surface
+   than the rest of the palette (Noon's yellow hits ~13:1 where Lulu's green
+   sits at ~5:1), which reads as glare rather than colour-coding. Hold every
+   fill inside a band so no single retailer shouts. Light mode keeps the brand
+   colour exact, since the edge outline handles visibility there. */
+const DARK_CEILING = 10.5;
+function fillColor(hex){
+  if(!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  if(document.documentElement.dataset.theme !== 'dark') return hex;
+  const surface = '#1A201D';
+  if(contrast(hex, surface) <= DARK_CEILING) return hex;
+  let {L,C,h} = oklch(hex), out = hex;
+  for(let i=0; i<60 && contrast(out, surface) > DARK_CEILING; i++){
+    L = cl(L - .012, .05, .99);
+    out = fromOklch(L,C,h);
+  }
+  return out;
+}
+
+/* --rc is the fill; --rc-edge only outlines it when the fill is too close
+   to the surface to be seen on its own */
+function paint(el, hex){
+  const fill = fillColor(hex);
+  el.style.setProperty('--rc', fill);
+  el.style.setProperty('--rc-edge', edgeColor(fill));
+}
+
+/* untitled retailers always sit at the end */
+function normalizeOrder(){
+  const titled = retailers.filter(r => r.name.trim());
+  const untitled = retailers.filter(r => !r.name.trim());
+  retailers = titled.concat(untitled);
+}
+const visible = () => retailers.filter(r => !r.hidden);
+let retailers = [];
+let values = {};          // id -> {amount, unit, price}
+let lockDim = null;
+let lastWinnerId = null;
+const rowEls = {};
+
+const $rows = document.getElementById('rows');
+const $winner = document.getElementById('winner');
+const $lock = document.getElementById('lock');
+const $lockText = document.getElementById('lockText');
+const $clearAll = document.getElementById('clearAll');
+const $manageBody = document.getElementById('manageBody');
+const uid = () => Math.random().toString(36).slice(2,9);
+
+/* ============ boot ============ */
+(async function init(){
+  const saved = await store.get('upc:v1');
+  if(saved && Array.isArray(saved.retailers) && saved.retailers.length){
+    migrate(saved);
+    retailers = saved.retailers;
+    values = saved.values || {};
+  }else{
+    retailers = DEFAULTS.map(d => ({id:uid(), ...d}));
+  }
+  retailers.forEach(r => {
+    if(!values[r.id]) values[r.id] = {amount:'',unit:'',price:''};
+    if(typeof r.name !== 'string') r.name = '';
+    r.hidden = !!r.hidden;
+  });
+  normalizeOrder();
+
+  const t = await store.get('upc:theme');
+  if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  else document.documentElement.dataset.theme =
+    matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+  buildRows(); buildManage(); recompute();
+})();
+
+function save(){ store.set('upc:v1', {version:DATA_VERSION, retailers, values}); }
+
+/* ============ rows ============ */
+const GROUPS = [
+  {dim:'mass',   label:'Weight', units:['g','kg']},
+  {dim:'volume', label:'Volume', units:['ml','L']},
+  {dim:'count',  label:'Count',  units:['pc']}
+];
+
+function setUnitLabel(btn, unit){
+  btn.textContent = unit ? UNITS[unit].label : 'Select';
+  btn.classList.toggle('empty', !unit);
+}
+
+let sheetRow = null;
+const $sheet = document.getElementById('sheet');
+const $scrim = document.getElementById('scrim');
+const $sheetGroups = document.getElementById('sheetGroups');
+const $sheetTitle = document.getElementById('sheetTitle');
+
+function openSheet(r){
+  sheetRow = r;
+  $sheetTitle.textContent = r.name.trim() || 'Untitled';
+  paint($sheet, r.color);
+  renderSheet();
+  $sheet.classList.add('open');
+  $scrim.classList.add('open');
+  const first = $sheetGroups.querySelector('.chip:not([disabled])');
+  if(first) first.focus({preventScroll:true});
+}
+function closeSheet(){
+  $sheet.classList.remove('open');
+  $scrim.classList.remove('open');
+  const ui = sheetRow && rowEls[sheetRow.id];
+  if(ui) ui.unitEl.focus({preventScroll:true});
+  sheetRow = null;
+}
+function renderSheet(){
+  const cur = values[sheetRow.id].unit;
+  $sheetGroups.innerHTML = GROUPS.map(g => {
+    const off = lockDim && lockDim !== g.dim;
+    return `<div class="ugroup${off ? ' off' : ''}">
+      <h3>${g.label}</h3>
+      <div class="chips${g.units.length === 1 ? ' single' : ''}">${g.units.map(u =>
+        `<button class="chip" data-u="${u}" aria-pressed="${u===cur}"${off ? ' disabled' : ''}>${UNITS[u].label}</button>`
+      ).join('')}</div>
+      ${off ? `<p class="why">${CANT[lockDim]}</p>` : ''}
+    </div>`;
+  }).join('');
+  $sheetGroups.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    if(!sheetRow) return;              /* sheet already closing — ignore stray taps */
+    values[sheetRow.id].unit = b.dataset.u;
+    const ui = rowEls[sheetRow.id];
+    if(ui) setUnitLabel(ui.unitEl, b.dataset.u);
+    const id = sheetRow.id;
+    closeSheet();
+    onChange(id);
+  });
+}
+document.getElementById('sheetClear').onclick = () => {
+  if(!sheetRow) return;
+  values[sheetRow.id].unit = '';
+  const ui = rowEls[sheetRow.id];
+  if(ui) setUnitLabel(ui.unitEl, '');
+  closeSheet();
+  onChange(null);
+};
+$scrim.onclick = closeSheet;
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && sheetRow) closeSheet(); });
+
+function buildRows(){
+  $rows.innerHTML = '';
+  for(const k in rowEls) delete rowEls[k];
+  visible().forEach(r => {
+    const v = values[r.id];
+    const el = document.createElement('div');
+    el.className = 'row';
+    paint(el, r.color);
+    el.innerHTML = `
+      <div class="row-top">
+        <span class="row-name"></span>
+        <span class="row-calc"></span>
+        <button class="row-clear" aria-label="Clear this row">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3Z"/></svg>
+        </button>
+      </div>
+      <div class="fields">
+        <div class="field"><label>Amount</label>
+          <input class="f-amount" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next"></div>
+        <div class="field"><label>Unit</label>
+          <button class="unit-btn f-unit" type="button" aria-haspopup="dialog"></button></div>
+        <div class="field price"><label>Price</label>
+          <input class="f-price" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"></div>
+      </div>`;
+    const nameEl  = el.querySelector('.row-name');
+    const calcEl  = el.querySelector('.row-calc');
+    const amountEl= el.querySelector('.f-amount');
+    const unitEl  = el.querySelector('.f-unit');
+    const priceEl = el.querySelector('.f-price');
+    const clearEl = el.querySelector('.row-clear');
+
+    setRowName(nameEl, r);
+    amountEl.value = v.amount;
+    priceEl.value = v.price;
+    setUnitLabel(unitEl, v.unit);
+
+    bindNumeric(amountEl, val => { v.amount = val; onChange(r.id); });
+    bindNumeric(priceEl,  val => { v.price  = val; onChange(r.id); });
+    unitEl  .addEventListener('click', () => openSheet(r));
+    clearEl .addEventListener('click', () => {
+      v.amount = ''; v.unit = ''; v.price = '';
+      amountEl.value = ''; priceEl.value = ''; setUnitLabel(unitEl, '');
+      onChange(null);
+    });
+
+    rowEls[r.id] = {el, nameEl, calcEl, unitEl, clearEl};
+    $rows.appendChild(el);
+  });
+}
+
+/* inputmode only suggests a keypad — it does not stop a physical keyboard,
+   a paste, or a swipe-typed word. Filter the value itself. */
+function cleanNum(s){
+  let v = s.replace(/,/g,'.').replace(/[^0-9.]/g,'');
+  const i = v.indexOf('.');
+  if(i !== -1) v = v.slice(0, i+1) + v.slice(i+1).replace(/\./g,'');
+  return v;
+}
+function bindNumeric(el, commit){
+  el.addEventListener('input', () => {
+    const raw = el.value, pos = el.selectionStart;
+    const clean = cleanNum(raw);
+    if(clean !== raw){
+      el.value = clean;
+      const back = raw.length - clean.length;
+      try{ el.setSelectionRange(Math.max(0,pos-back), Math.max(0,pos-back)); }catch(e){}
+    }
+    commit(clean);
+  });
+}
+
+function setRowName(el, r){
+  const n = r.name.trim();
+  if(n){ el.textContent = n; }
+  else { el.innerHTML = '<span class="untitled">Untitled</span>'; }
+}
+
+function onChange(changedId){ recompute(changedId); save(); }
+
+/* ============ core ============ */
+function rowResult(r){
+  const v = values[r.id];
+  const a = num(v.amount), p = num(v.price);
+  const up = unitPrice(a, v.unit, p);
+  if(up === null) return {state:'incomplete'};
+  const dim = UNITS[v.unit].dim;
+  return {state:'ok', up, dim};
+}
+
+function recompute(changedId){
+  const results = visible().map(r => ({r, ...rowResult(r)}));
+  const complete = results.filter(x => x.state === 'ok');
+
+  /* lock: first completed row fixes the dimension for the round */
+  if(lockDim && !complete.some(x => x.dim === lockDim)) lockDim = null;
+  if(!lockDim && complete.length){
+    const seed = complete.find(x => x.r.id === changedId) || complete[0];
+    lockDim = seed.dim;
+  }
+
+  const inPlay = complete.filter(x => x.dim === lockDim).sort((a,b) => a.up - b.up);
+  const best = inPlay[0] || null;
+
+  results.forEach(x => {
+    const ui = rowEls[x.r.id]; if(!ui) return;
+    const v = values[x.r.id];
+    const dirty = !!(v.amount || v.unit || v.price);
+    ui.clearEl.disabled = !dirty;
+    setUnitLabel(ui.unitEl, v.unit);
+
+    if(x.state === 'ok' && x.dim !== lockDim){
+      ui.el.classList.add('excluded');
+      ui.el.classList.remove('filled');
+      ui.calcEl.className = 'row-note';
+      ui.calcEl.textContent = `not ${DIM_NAME[lockDim]}`;
+    }else if(x.state === 'ok'){
+      ui.el.classList.remove('excluded');
+      ui.el.classList.add('filled');
+      ui.calcEl.className = 'row-calc' + (best && x.r.id === best.r.id ? ' best' : '');
+      ui.calcEl.textContent = `${fmt(x.up)} / ${DISPLAY[x.dim].unit}`;
+    }else{
+      ui.el.classList.remove('excluded','filled');
+      ui.calcEl.className = 'row-calc';
+      ui.calcEl.textContent = '';
+    }
+  });
+
+  if(lockDim && inPlay.length){
+    $lock.classList.add('on');
+    $lockText.textContent = LOCK_COPY[lockDim];
+  }else $lock.classList.remove('on');
+
+  $clearAll.disabled = !retailers.some(r => {
+    const v = values[r.id]; return v.amount || v.unit || v.price;
+  });
+
+  renderWinner(inPlay);
+}
+
+function renderWinner(inPlay){
+  if(!inPlay.length){
+    $winner.className = '';
+    $winner.style.removeProperty('--rc');
+    $winner.innerHTML = '<div class="w-empty">Fill in a row to start comparing.</div>';
+    lastWinnerId = null;
+    return;
+  }
+  const best = inPlay[0], second = inPlay[1];
+  const unit = DISPLAY[best.dim].unit;
+  let sub;
+  if(!second){
+    sub = 'Only one row filled. Add another to compare.';
+  }else{
+    const other = esc(second.r.name.trim() || 'Untitled');
+    if(eq(best.up, second.up)){
+      sub = `Same price as <b>${other}</b>.`;
+    }else{
+      const pct = ((second.up - best.up) / second.up) * 100;
+      sub = `<b>${pct.toFixed(pct < 10 ? 1 : 0)}%</b> cheaper than <b>${other}</b>`;
+    }
+  }
+  paint($winner, best.r.color);
+  $winner.className = 'live' + (lastWinnerId && lastWinnerId !== best.r.id ? ' flash' : '');
+  $winner.innerHTML =
+    `<div class="w-name">${esc(best.r.name.trim() || 'Untitled')}</div>
+     <div class="w-price"><span class="w-num">${fmt(best.up)}</span><span class="w-unit">per ${unit}</span></div>
+     <div class="w-sub">${sub}</div>`;
+  lastWinnerId = best.r.id;
+}
+function esc(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ============ manage retailers ============ */
+function buildManage(){
+  $manageBody.innerHTML = '';
+  retailers.forEach((r,i) => {
+    const wrap = document.createElement('div');
+    const eyeOn  = '<path d="M12 5c5 0 9 4.5 9 7s-4 7-9 7-9-4.5-9-7 4-7 9-7Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>';
+    const eyeOff = '<path d="M3.3 2.3 1.9 3.7l3 3C3.1 8.2 2 10.2 2 12c0 2.5 4 7 10 7 1.9 0 3.5-.45 4.9-1.15l3.4 3.4 1.4-1.4ZM12 17c-4.4 0-7.4-3.1-8-5 .35-1.1 1.1-2.3 2.3-3.3l2.2 2.2A4 4 0 0 0 13.1 16Zm0-10c4.4 0 7.4 3.1 8 5-.3.95-.9 2-1.9 2.9l-2.6-2.6A4 4 0 0 0 10.7 7.2Z"/>';
+    wrap.innerHTML = `
+      <div class="mr${r.hidden ? ' hidden' : ''}" style="--rc:${r.color}">
+        <button class="swatch" aria-label="Change colour"></button>
+        <input type="text" value="${esc(r.name)}" placeholder="Retailer name" aria-label="Retailer name" maxlength="24">
+        <button class="mini eye${r.hidden ? ' off' : ''}" aria-pressed="${!r.hidden}"
+          aria-label="${r.hidden ? 'Show on main page' : 'Hide from main page'}">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">${r.hidden ? eyeOff : eyeOn}</svg></button>
+        <button class="mini up" aria-label="Move up"${i===0?' disabled':''}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8l5 5H7Z"/></svg></button>
+        <button class="mini down" aria-label="Move down"${i===retailers.length-1?' disabled':''}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-5-5h10Z"/></svg></button>
+        <button class="mini del" aria-label="Remove retailer">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 21V7h10v14Zm2-2h6V9H9ZM8 4h3l1-1h1l1 1h3v2H8Z"/></svg></button>
+      </div>
+      <div class="palette">${PALETTE.map(c =>
+        `<button style="background:${c}" data-c="${c}" aria-pressed="${c===r.color}" aria-label="Colour ${c}"></button>`).join('')}</div>`;
+
+    const pal = wrap.querySelector('.palette');
+    wrap.querySelector('.swatch').onclick = () => pal.classList.toggle('open');
+    pal.querySelectorAll('button').forEach(b => b.onclick = () => {
+      r.color = b.dataset.c; save(); buildRows(); buildManage(); recompute();
+    });
+    wrap.querySelector('.eye').onclick = () => {
+      r.hidden = !r.hidden;
+      save(); buildRows(); buildManage(); recompute();
+    };
+    const nameInput = wrap.querySelector('input');
+    nameInput.oninput = e => {
+      const was = !!r.name.trim();
+      r.name = e.target.value;
+      if(rowEls[r.id]) setRowName(rowEls[r.id].nameEl, r);
+      /* only re-sort when it crosses the titled/untitled boundary, so
+         the field doesn't lose focus mid-typing */
+      if(was !== !!r.name.trim()){
+        normalizeOrder(); save(); buildRows(); buildManage(); recompute();
+        const again = $manageBody.querySelector(`input[data-id="${r.id}"]`);
+        if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+        return;
+      }
+      save(); recompute();
+    };
+    nameInput.dataset.id = r.id;
+    wrap.querySelector('.up').onclick = () => move(i,-1);
+    wrap.querySelector('.down').onclick = () => move(i, 1);
+    wrap.querySelector('.del').onclick = () => {
+      retailers.splice(i,1); delete values[r.id];
+      save(); buildRows(); buildManage(); recompute();
+    };
+    $manageBody.appendChild(wrap);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'add';
+  add.textContent = 'Add retailer';
+  add.onclick = () => {
+    const id = uid();
+    retailers.push({id, name:'', color:PALETTE[retailers.length % PALETTE.length], hidden:false});
+    values[id] = {amount:'',unit:'',price:''};
+    normalizeOrder(); save(); buildRows(); buildManage(); recompute();
+    const input = $manageBody.querySelector(`input[data-id="${id}"]`);
+    if(input) input.focus();
+  };
+  $manageBody.appendChild(add);
+
+  const reset = document.createElement('button');
+  reset.className = 'add reset';
+  reset.textContent = 'Reset to default retailers';
+  let armed = false;
+  reset.onclick = () => {
+    if(!armed){
+      armed = true;
+      reset.textContent = 'Tap again to replace your list';
+      reset.classList.add('armed');
+      setTimeout(() => {
+        if(!armed) return;
+        armed = false; reset.textContent = 'Reset to default retailers'; reset.classList.remove('armed');
+      }, 4000);
+      return;
+    }
+    retailers = DEFAULTS.map(d => ({id:uid(), ...d, hidden:false}));
+    values = {};
+    retailers.forEach(r => values[r.id] = {amount:'',unit:'',price:''});
+    lockDim = null; lastWinnerId = null;
+    save(); buildRows(); buildManage(); recompute();
+  };
+  $manageBody.appendChild(reset);
+}
+function move(i,d){
+  const j = i + d;
+  if(j < 0 || j >= retailers.length) return;
+  [retailers[i], retailers[j]] = [retailers[j], retailers[i]];
+  normalizeOrder();
+  save(); buildRows(); buildManage(); recompute();
+}
+
+/* ============ chrome ============ */
+$clearAll.onclick = () => {
+  retailers.forEach(r => values[r.id] = {amount:'',unit:'',price:''});
+  lockDim = null; lastWinnerId = null;
+  buildRows(); recompute(); save();
+};
+document.getElementById('theme').onclick = () => {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  store.set('upc:theme', next);
+  buildRows(); recompute();   /* brand colours are adjusted per theme */
+};
+</script>
+</body>
+</html>
