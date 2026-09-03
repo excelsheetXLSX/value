@@ -394,5 +394,15 @@ document.getElementById('theme').onclick = () => {
 /* ============ service worker ============ */
 /* registered last so a failure here can never stop the app booting */
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){
-  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const sw = navigator.serviceWorker;
+  /* whether this page is already being served by a worker decides what a
+     change of controller means: a first install, or a new version taking over */
+  const wasControlled = !!sw.controller;
+  let reloaded = false;
+  sw.addEventListener('controllerchange', () => {
+    if(!wasControlled || reloaded) return;   /* first install — nothing to refresh */
+    reloaded = true;
+    location.reload();                       /* a new build took over; show it */
+  });
+  addEventListener('load', () => sw.register('sw.js').catch(() => {}));
 }
