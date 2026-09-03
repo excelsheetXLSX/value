@@ -290,12 +290,14 @@ function renderWinner(inPlay){
   const v = values[best.r.id];
   const changed = !!lastWinnerId && lastWinnerId !== best.r.id;
 
-  let verdict;
-  const detail = [];
+  let verdict, rank = '';
+  const stats = [];
 
   /* per kg is the right basis for comparing and a poor one for picturing a
      pack measured in grams, so show both — but never as a second headline */
-  if(v.unit === 'g' || v.unit === 'ml') detail.push(`${fmt(best.up / 10)} per 100 ${v.unit}`);
+  if(v.unit === 'g' || v.unit === 'ml'){
+    stats.push([fmt(best.up / 10), `per 100 ${v.unit}`]);
+  }
 
   if(!second){
     verdict = 'Only one row filled. Add another to compare.';
@@ -315,18 +317,20 @@ function renderWinner(inPlay){
     const packs = (num(v.amount) * UNITS[v.unit].to) / DISPLAY[best.dim].per;
     const saving = second.up * packs - num(v.price);
     if(saving > 0 && isFinite(saving)){
-      detail.push(`saves ${fmt(saving)} on ${v.amount} ${UNITS[v.unit].label}`);
+      stats.push([fmt(saving), `saved on ${v.amount} ${UNITS[v.unit].label}`]);
     }
-    if(inPlay.length > 2) detail.push(`cheapest of ${inPlay.length}`);
+    /* the rank qualifies the name, so it sits with it rather than in the stats */
+    if(inPlay.length > 2) rank = `<span class="w-rank">cheapest of ${inPlay.length}</span>`;
   }
 
   paint($winner, best.r.color);
   $winner.className = 'live' + (changed ? ' flash' : '');
   $winner.innerHTML =
-    `<div class="w-name">${esc(best.r.name.trim() || 'Untitled')}</div>
+    `<div class="w-head"><span class="w-name">${esc(best.r.name.trim() || 'Untitled')}</span>${rank}</div>
      <div class="w-price"><span class="w-num"></span><span class="w-unit">per ${unit}</span></div>
      <div class="w-verdict">${verdict}</div>
-     ${detail.length ? `<div class="w-detail">${detail.join(' · ')}</div>` : ''}`;
+     ${stats.length ? `<div class="w-stats">${stats.map(([n, l]) =>
+        `<div class="w-stat"><b>${n}</b><span>${l}</span></div>`).join('')}</div>` : ''}`;
 
   countTo($winner.querySelector('.w-num'), lastWinnerUp, best.up);
 

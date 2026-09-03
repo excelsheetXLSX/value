@@ -100,8 +100,14 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
    and — held back behind a rule — the supporting detail. The detail line
    carries no bold at all; scattering bold across every line was what made
    this card read as a paragraph instead of an answer. */
-.w-name{font-size:16px;font-weight:700;color:var(--on);margin-bottom:2px;
+.w-head{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+.w-name{font-size:16px;font-weight:700;color:var(--on);min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w-rank{
+  margin-left:auto; flex:none; font-size:11px; font-weight:700; letter-spacing:.02em;
+  padding:4px 9px; border-radius:999px; color:var(--muted);
+  background:color-mix(in srgb, var(--on) 9%, transparent);
+}
 .w-price{
   display:flex; align-items:baseline; gap:9px; margin:0 0 10px;
 }
@@ -116,16 +122,20 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
    findable without reading. Same fill/edge split as everywhere else: the edge
    is what keeps it legible as text. */
 .w-verdict .who{font-weight:700}
-.w-detail{
-  font-size:12px; color:var(--muted); margin-top:9px; padding-top:9px;
+/* the supporting figures as labelled stats rather than a run-on sentence of
+   dot separators — each number gets its own weight and its own caption */
+.w-stats{
+  display:flex; gap:26px; margin-top:10px; padding-top:10px;
   border-top:1px solid color-mix(in srgb, var(--on) 12%, transparent);
 }
+.w-stat b{display:block; font-size:16px; font-weight:700; color:var(--on); line-height:1.15}
+.w-stat span{display:block; font-size:11px; color:var(--muted); margin-top:2px}
 .w-empty{font-size:16px;color:var(--muted);font-weight:500}
 .w-last{font-size:12.5px;color:var(--muted);margin-top:7px;opacity:.85}
 
 /* the winner changing is the one moment worth animating: the name and verdict
    arrive rather than blink, while the number counts across in JS */
-#winner.flash .w-name,#winner.flash .w-verdict{animation:rise .32s cubic-bezier(.2,0,0,1) both}
+#winner.flash .w-head,#winner.flash .w-verdict{animation:rise .32s cubic-bezier(.2,0,0,1) both}
 #winner.flash .w-verdict{animation-delay:.05s}
 @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
