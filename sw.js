@@ -7,7 +7,7 @@
    and when a new worker takes over the page reloads itself once. Offline is
    unaffected — the network half just fails and the cache answers. */
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE = `value-${CACHE_VERSION}`;
 
 const SHELL = [
@@ -68,10 +68,13 @@ self.addEventListener('fetch', e => {
 
   e.respondWith(
     caches.match(key).then(hit => {
-      const net = fresh(req.mode === 'navigate' ? 'index.html' : req.url, key);
+      /* the catch matters even when the cache answers: offline, this fetch
+         always rejects, and an uncaught rejection per request is noise */
+      const net = fresh(req.mode === 'navigate' ? 'index.html' : req.url, key)
+        .catch(() => hit || caches.match('index.html'));
       /* answer from cache straight away; the network copy lands in the cache
          for next time. With nothing cached yet, wait for the network. */
       return hit || net;
-    }).catch(() => caches.match('index.html'))
+    })
   );
 });
