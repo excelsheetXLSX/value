@@ -1,7 +1,7 @@
 import {store, PALETTE, DEFAULTS, DATA_VERSION, migrate} from './store.js';
 import {UNITS, DISPLAY, DIM_NAME, LOCK_COPY, CANT, GROUPS,
         unitPrice, num, fmt, eq, cleanNum} from './units.js';
-import {paint} from './color.js';
+import {paint, fillColor, edgeColor} from './color.js';
 
 /* untitled retailers always sit at the end */
 function normalizeOrder(){
@@ -213,7 +213,6 @@ function recompute(changedId){
 
   const inPlay = complete.filter(x => x.dim === lockDim).sort((a,b) => a.up - b.up);
   const best = inPlay[0] || null;
-  const dearest = inPlay[inPlay.length - 1] || null;
 
   results.forEach(x => {
     const ui = rowEls[x.r.id]; if(!ui) return;
@@ -224,7 +223,7 @@ function recompute(changedId){
 
     if(x.state === 'ok' && x.dim !== lockDim){
       ui.el.classList.add('excluded');
-      ui.el.classList.remove('filled','ranked');
+      ui.el.classList.remove('filled');
       ui.calcEl.className = 'row-note';
       ui.calcEl.textContent = `not ${DIM_NAME[lockDim]}`;
     }else if(x.state === 'ok'){
@@ -232,15 +231,8 @@ function recompute(changedId){
       ui.el.classList.add('filled');
       ui.calcEl.className = 'row-calc' + (best && x.r.id === best.r.id ? ' best' : '');
       ui.calcEl.textContent = `${fmt(x.up)} / ${DISPLAY[x.dim].unit}`;
-      /* only worth drawing once there is something to compare against */
-      if(dearest && inPlay.length > 1){
-        ui.el.classList.add('ranked');
-        ui.el.style.setProperty('--rank', (x.up / dearest.up).toFixed(3));
-      }else{
-        ui.el.classList.remove('ranked');
-      }
     }else{
-      ui.el.classList.remove('excluded','filled','ranked');
+      ui.el.classList.remove('excluded','filled');
       ui.calcEl.className = 'row-calc';
       ui.calcEl.textContent = '';
     }
@@ -308,7 +300,10 @@ function renderWinner(inPlay){
   if(!second){
     verdict = 'Only one row filled. Add another to compare.';
   }else{
-    const other = esc(second.r.name.trim() || 'Untitled');
+    /* name the runner-up in its own colour so the row it means is findable
+       without reading. 4.5:1 because this is text, not an outline. */
+    const c = edgeColor(fillColor(second.r.color), undefined, 4.5);
+    const other = `<span class="who" style="color:${esc(c)}">${esc(second.r.name.trim() || 'Untitled')}</span>`;
     if(eq(best.up, second.up)){
       verdict = `Same price as ${other}.`;
     }else{

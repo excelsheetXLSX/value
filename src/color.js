@@ -42,15 +42,17 @@ function lum(hex){ const [r,g,b] = hex2rgb(hex).map(s2l); return .2126*r + .7152
 function contrast(a,b){ const [x,y] = [lum(a),lum(b)].sort((m,n) => n-m); return (x+.05)/(y+.05); }
 
 /* the outline colour: same hue, moved in OKLCH only until it clears 3:1 */
-function edgeColor(hex, dark){
+/* `min` is the contrast the result has to clear. 3.05 is the default, enough
+   for an outline; text needs more, so callers drawing words pass 4.5. */
+function edgeColor(hex, dark, min = 3.05){
   if(!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
   if(dark === undefined) dark = isDarkTheme();
   const surface = dark ? '#1A201D' : '#FFFFFF';
-  if(contrast(hex, surface) >= 3.05) return hex;   /* already visible — leave it alone */
+  if(contrast(hex, surface) >= min) return hex;    /* already visible — leave it alone */
   let {L,C,h} = oklch(hex);
   const dir = dark ? 1 : -1;
   let out = fromOklch(L,C,h);
-  for(let i=0; i<60 && contrast(out,surface) < 3.05; i++){
+  for(let i=0; i<90 && contrast(out,surface) < min; i++){
     L = cl(L + dir*.012, .05, .99);
     out = fromOklch(L,C,h);
   }

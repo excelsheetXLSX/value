@@ -58,6 +58,20 @@ test('only the colours too close to the surface get an outline', () => {
   assert.ok(outlinedDark.includes('#4E3080'),  'ADCOOP needs an outline in dark');
 });
 
+test('a caller can demand more contrast than an outline needs', () => {
+  /* the winner card names the runner-up in its own colour — that is text, so
+     it asks for 4.5:1 rather than the 3:1 an outline gets */
+  for(const c of ALL){
+    for(const dark of [false, true]){
+      const surface = dark ? DARK_SURFACE : LIGHT_SURFACE;
+      const text = edgeColor(fillColor(c, dark), dark, 4.5);
+      assert.ok(contrast(text, surface) >= 4.5,
+        `${c} as text is ${contrast(text, surface).toFixed(2)}:1 (dark=${dark})`);
+      assert.ok(hueShift(c, text) < 0.12, `${c} shifted hue reaching 4.5:1`);
+    }
+  }
+});
+
 /* ---------- the fill ---------- */
 
 test('light mode keeps every brand colour exactly as the brand uses it', () => {

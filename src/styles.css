@@ -112,6 +112,10 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 .w-unit{font-size:15px;font-weight:700;color:var(--muted)}
 .w-verdict{font-size:14px;color:var(--muted)}
 .w-verdict b{color:var(--on);font-weight:700}
+/* the runner-up is named in its own brand colour, so the row it refers to is
+   findable without reading. Same fill/edge split as everywhere else: the edge
+   is what keeps it legible as text. */
+.w-verdict .who{font-weight:700}
 .w-detail{
   font-size:12px; color:var(--muted); margin-top:9px; padding-top:9px;
   border-top:1px solid color-mix(in srgb, var(--on) 12%, transparent);
@@ -148,14 +152,6 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
   background:var(--surface); border-radius:var(--r-md);
   border-left:11px solid var(--rc);
   padding:10px 12px 12px 14px;
-}
-/* how dear this row is against the dearest in play — five numbers become a
-   shape you can read without reading them */
-.row.ranked{padding-bottom:19px}
-.row.ranked::after{
-  content:''; position:absolute; left:14px; right:14px; bottom:8px; height:3px;
-  border-radius:2px; pointer-events:none; opacity:.55;
-  background:linear-gradient(90deg, var(--rc) calc(var(--rank) * 100%), transparent 0);
 }
 .row.excluded{opacity:.55}
 .row.filled{background:color-mix(in srgb, var(--rc) var(--row-tint), var(--surface))}
