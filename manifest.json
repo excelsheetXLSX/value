@@ -1,10 +1,10 @@
 {
-  "name": "Unit price",
-  "short_name": "Unit price",
+  "name": "Value",
+  "short_name": "Value",
   "description": "Compare grocery prices per litre, kilo or piece.",
   "start_url": ".",
   "scope": ".",
-  "id": "/unit-price/",
+  "id": "/value/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F2F3EF",

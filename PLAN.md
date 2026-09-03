@@ -3,8 +3,9 @@
 Read `CLAUDE.md` first — it holds the invariants. Work phases in order; each
 phase should leave the app working.
 
-**Status:** Phases 0-2 are done. Live at https://excelsheetxlsx.github.io/unit-price/
-(GitHub Pages, `main` branch). Phase 3 is waiting on real use in a store.
+**Status:** Phases 0-2 are done. Live at https://excelsheetxlsx.github.io/value/
+(GitHub Pages, `main` branch). The app is called **Value**. Phase 3 is waiting
+on real use in a store.
 
 ---
 
@@ -55,7 +56,7 @@ custom one after them, and any `dz` unit cleared.
 
 Currently it's a page, not an installable app.
 
-1. `manifest.json` — name, short_name "Unit price", `display: standalone`,
+1. `manifest.json` — name, short_name "Value", `display: standalone`,
    `orientation: portrait`, `start_url: "."`, theme_color matching the
    `<meta name="theme-color">` pair already in the head, background_color, and
    192/512 maskable icons.

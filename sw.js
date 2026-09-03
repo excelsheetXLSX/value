@@ -2,8 +2,8 @@
    whole thing is precached on install and served from cache first, and the
    only thing that ever invalidates it is bumping CACHE_VERSION on deploy. */
 
-const CACHE_VERSION = 'v1';
-const CACHE = `unit-price-${CACHE_VERSION}`;
+const CACHE_VERSION = 'v2';
+const CACHE = `value-${CACHE_VERSION}`;
 
 const SHELL = [
   '.',

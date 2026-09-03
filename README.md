@@ -1,4 +1,4 @@
-# Unit price
+# Value
 
 A grocery unit-price comparator. Type an amount, a unit and a price for each
 shop; it normalises everything to a litre, a kilo or a piece and tells you

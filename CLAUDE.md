@@ -1,4 +1,4 @@
-# Unit price — project context
+# Value — project context
 
 A personal grocery unit-price comparator. Single-page PWA, used one-handed
 while standing in a supermarket aisle. Manual entry only, no scraping, no
