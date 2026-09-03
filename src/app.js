@@ -14,7 +14,11 @@ let retailers = [];
 let values = {};          // id -> {amount, unit, price}
 let lockDim = null;
 let lastWinnerId = null;
+let lastWinnerUp = null;      /* the number the counter animates from */
+let lastResult = null;        /* the previous session's winner, for the empty state */
+let numAnim = null;
 const rowEls = {};
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const $rows = document.getElementById('rows');
 const $winner = document.getElementById('winner');
@@ -40,6 +44,8 @@ const uid = () => Math.random().toString(36).slice(2,9);
     r.hidden = !!r.hidden;
   });
   normalizeOrder();
+
+  lastResult = await store.get('upc:last');
 
   const t = await store.get('upc:theme');
   if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
@@ -207,6 +213,7 @@ function recompute(changedId){
 
   const inPlay = complete.filter(x => x.dim === lockDim).sort((a,b) => a.up - b.up);
   const best = inPlay[0] || null;
+  const dearest = inPlay[inPlay.length - 1] || null;
 
   results.forEach(x => {
     const ui = rowEls[x.r.id]; if(!ui) return;
@@ -217,7 +224,7 @@ function recompute(changedId){
 
     if(x.state === 'ok' && x.dim !== lockDim){
       ui.el.classList.add('excluded');
-      ui.el.classList.remove('filled');
+      ui.el.classList.remove('filled','ranked');
       ui.calcEl.className = 'row-note';
       ui.calcEl.textContent = `not ${DIM_NAME[lockDim]}`;
     }else if(x.state === 'ok'){
@@ -225,8 +232,15 @@ function recompute(changedId){
       ui.el.classList.add('filled');
       ui.calcEl.className = 'row-calc' + (best && x.r.id === best.r.id ? ' best' : '');
       ui.calcEl.textContent = `${fmt(x.up)} / ${DISPLAY[x.dim].unit}`;
+      /* only worth drawing once there is something to compare against */
+      if(dearest && inPlay.length > 1){
+        ui.el.classList.add('ranked');
+        ui.el.style.setProperty('--rank', (x.up / dearest.up).toFixed(3));
+      }else{
+        ui.el.classList.remove('ranked');
+      }
     }else{
-      ui.el.classList.remove('excluded','filled');
+      ui.el.classList.remove('excluded','filled','ranked');
       ui.calcEl.className = 'row-calc';
       ui.calcEl.textContent = '';
     }
@@ -244,59 +258,91 @@ function recompute(changedId){
   renderWinner(inPlay);
 }
 
+/* counts the headline figure from the old value to the new one — the maths is
+   what the app does, so it should visibly happen rather than just appear */
+function countTo(el, from, to){
+  if(numAnim) cancelAnimationFrame(numAnim);
+  if(calm() || from === null || !isFinite(from) || from === to){
+    el.textContent = fmt(to);
+    return;
+  }
+  el.textContent = fmt(from);      /* paint the start value now, not on the first frame */
+  const t0 = performance.now(), ms = 280;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / ms);
+    const e = 1 - Math.pow(1 - k, 3);           /* ease out */
+    el.textContent = fmt(from + (to - from) * e);
+    if(k < 1) numAnim = requestAnimationFrame(step);
+    else { numAnim = null; el.textContent = fmt(to); }
+  };
+  numAnim = requestAnimationFrame(step);
+}
+
 function renderWinner(inPlay){
   if(!inPlay.length){
     $winner.className = '';
     $winner.style.removeProperty('--rc');
-    $winner.innerHTML = '<div class="w-empty">Fill in a row to start comparing.</div>';
+    /* the resting state carries the last thing you worked out, so opening the
+       app cold shows something of yours rather than an empty box */
+    const last = lastResult && lastResult.name
+      ? `<div class="w-last">Last time · ${esc(lastResult.name)} at ${esc(lastResult.price)} per ${esc(lastResult.unit)}</div>`
+      : '';
+    $winner.innerHTML = `<div class="w-empty">Fill in a row to start comparing.</div>${last}`;
     lastWinnerId = null;
+    lastWinnerUp = null;
     return;
   }
+
   const best = inPlay[0], second = inPlay[1];
   const unit = DISPLAY[best.dim].unit;
   const v = values[best.r.id];
+  const changed = !!lastWinnerId && lastWinnerId !== best.r.id;
 
-  /* Per kg is the right basis for comparing, but it's a poor number to picture
-     when the pack in your hand is measured in grams. Show both, and only when
-     the amount was actually entered small. */
-  const alt = (v.unit === 'g' || v.unit === 'ml')
-    ? `<div class="w-alt">${fmt(best.up / 10)} per 100 ${v.unit}</div>`
-    : '';
+  let verdict;
+  const detail = [];
 
-  let sub, extra = '';
+  /* per kg is the right basis for comparing and a poor one for picturing a
+     pack measured in grams, so show both — but never as a second headline */
+  if(v.unit === 'g' || v.unit === 'ml') detail.push(`${fmt(best.up / 10)} per 100 ${v.unit}`);
+
   if(!second){
-    sub = 'Only one row filled. Add another to compare.';
+    verdict = 'Only one row filled. Add another to compare.';
   }else{
     const other = esc(second.r.name.trim() || 'Untitled');
     if(eq(best.up, second.up)){
-      sub = `Same price as <b>${other}</b>.`;
+      verdict = `Same price as ${other}.`;
     }else{
       const pct = ((second.up - best.up) / second.up) * 100;
-      sub = `<b>${pct.toFixed(pct < 10 ? 1 : 0)}%</b> cheaper than <b>${other}</b>`;
+      verdict = `<b>${pct.toFixed(pct < 10 ? 1 : 0)}%</b> cheaper than ${other}`;
     }
-    const bits = [];
-    /* a percentage is abstract in an aisle; what you actually keep is the
-       difference on the pack you're holding, at the runner-up's rate */
+    /* a percentage is abstract in an aisle; the money you keep on the pack in
+       your hand, at the runner-up's rate, is the number you decide on */
     const packs = (num(v.amount) * UNITS[v.unit].to) / DISPLAY[best.dim].per;
     const saving = second.up * packs - num(v.price);
     if(saving > 0 && isFinite(saving)){
-      bits.push(`saves <b>${fmt(saving)}</b> on this ${v.amount} ${UNITS[v.unit].label}`);
+      detail.push(`saves ${fmt(saving)} on ${v.amount} ${UNITS[v.unit].label}`);
     }
-    if(inPlay.length > 2) bits.push(`cheapest of ${inPlay.length}`);
-    if(bits.length){
-      const line = bits.join(' · ');
-      extra = `<div class="w-extra">${line[0].toUpperCase() + line.slice(1)}</div>`;
-    }
+    if(inPlay.length > 2) detail.push(`cheapest of ${inPlay.length}`);
   }
+
   paint($winner, best.r.color);
-  $winner.className = 'live' + (lastWinnerId && lastWinnerId !== best.r.id ? ' flash' : '');
+  $winner.className = 'live' + (changed ? ' flash' : '');
   $winner.innerHTML =
     `<div class="w-name">${esc(best.r.name.trim() || 'Untitled')}</div>
-     <div class="w-price"><span class="w-num">${fmt(best.up)}</span><span class="w-unit">per ${unit}</span></div>
-     ${alt}
-     <div class="w-sub">${sub}</div>
-     ${extra}`;
+     <div class="w-price"><span class="w-num"></span><span class="w-unit">per ${unit}</span></div>
+     <div class="w-verdict">${verdict}</div>
+     ${detail.length ? `<div class="w-detail">${detail.join(' · ')}</div>` : ''}`;
+
+  countTo($winner.querySelector('.w-num'), lastWinnerUp, best.up);
+
+  /* a short tick when the lead changes hands — in a noisy aisle you feel it
+     before you read it */
+  if(changed && !calm() && navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+
   lastWinnerId = best.r.id;
+  lastWinnerUp = best.up;
+  lastResult = {name: best.r.name.trim() || 'Untitled', price: fmt(best.up), unit};
+  store.set('upc:last', lastResult);
 }
 function esc(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 

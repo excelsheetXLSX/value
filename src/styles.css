@@ -96,24 +96,34 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 #winner.live{
   background:color-mix(in srgb, var(--rc) var(--tint), var(--surface));
 }
-#winner.flash{animation:pop .28s ease-out}
-@keyframes pop{0%{transform:scale(.985)}60%{transform:scale(1.008)}100%{transform:scale(1)}}
-.w-name{font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:none;
-  color:var(--muted);margin-bottom:4px}
+/* Three steps of hierarchy, not five lines of grey: who won, at what rate,
+   and — held back behind a rule — the supporting detail. The detail line
+   carries no bold at all; scattering bold across every line was what made
+   this card read as a paragraph instead of an answer. */
+.w-name{font-size:16px;font-weight:700;color:var(--on);margin-bottom:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .w-price{
-  display:flex; align-items:baseline; gap:9px; margin:0 0 8px;
+  display:flex; align-items:baseline; gap:9px; margin:0 0 10px;
 }
 .w-num{
   font-size:clamp(42px,13.5vw,58px); font-weight:800; line-height:.95;
-  letter-spacing:-.035em;
+  letter-spacing:-.035em; font-variant-numeric:tabular-nums lining;
 }
 .w-unit{font-size:15px;font-weight:700;color:var(--muted)}
-.w-alt{font-size:13.5px;font-weight:600;color:var(--muted);margin:-4px 0 8px}
-.w-sub{font-size:14px;color:var(--muted)}
-.w-sub b{color:var(--on);font-weight:600}
-.w-extra{font-size:13px;color:var(--muted);margin-top:3px}
-.w-extra b{color:var(--on);font-weight:600}
+.w-verdict{font-size:14px;color:var(--muted)}
+.w-verdict b{color:var(--on);font-weight:700}
+.w-detail{
+  font-size:12px; color:var(--muted); margin-top:9px; padding-top:9px;
+  border-top:1px solid color-mix(in srgb, var(--on) 12%, transparent);
+}
 .w-empty{font-size:16px;color:var(--muted);font-weight:500}
+.w-last{font-size:12.5px;color:var(--muted);margin-top:7px;opacity:.85}
+
+/* the winner changing is the one moment worth animating: the name and verdict
+   arrive rather than blink, while the number counts across in JS */
+#winner.flash .w-name,#winner.flash .w-verdict{animation:rise .32s cubic-bezier(.2,0,0,1) both}
+#winner.flash .w-verdict{animation-delay:.05s}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
 /* ---------- lock chip ---------- */
 #lock{
@@ -134,9 +144,18 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
    around it it discoloured the bar's edges. (Overrides CLAUDE.md §4 for the
    bar specifically — Amr asked for the bar to be one flat colour.) */
 .row{
+  position:relative;
   background:var(--surface); border-radius:var(--r-md);
   border-left:11px solid var(--rc);
   padding:10px 12px 12px 14px;
+}
+/* how dear this row is against the dearest in play — five numbers become a
+   shape you can read without reading them */
+.row.ranked{padding-bottom:19px}
+.row.ranked::after{
+  content:''; position:absolute; left:14px; right:14px; bottom:8px; height:3px;
+  border-radius:2px; pointer-events:none; opacity:.55;
+  background:linear-gradient(90deg, var(--rc) calc(var(--rank) * 100%), transparent 0);
 }
 .row.excluded{opacity:.55}
 .row.filled{background:color-mix(in srgb, var(--rc) var(--row-tint), var(--surface))}
@@ -272,4 +291,18 @@ details.manage[open]>summary .chev{transform:rotate(180deg)}
 .add.reset{color:var(--muted);border-style:solid;margin-top:6px;font-weight:500}
 .add.reset.armed{color:var(--danger);border-color:var(--danger);font-weight:600}
 .hint{font-size:13px;color:var(--muted);margin:14px 2px 0;text-align:center}
+/* a small give under the finger — the app is used one-handed and taps
+   otherwise land with no acknowledgement but a colour change */
+.icon-btn,.text-btn,.mini,.swatch,.chip,.add,.row-clear,.field .unit-btn{
+  transition:transform .12s cubic-bezier(.2,0,0,1), background-color .12s;
+}
+.icon-btn:active,.text-btn:active,.mini:active,.row-clear:active{transform:scale(.92)}
+.swatch:active,.palette button:active{transform:scale(.9)}
+.chip:active,.add:active,.field .unit-btn:active{transform:scale(.975)}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){
+  .icon-btn:active,.text-btn:active,.mini:active,.row-clear:active,
+  .swatch:active,.palette button:active,
+  .chip:active,.add:active,.field .unit-btn:active{transform:none}
+}
