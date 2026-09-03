@@ -7,7 +7,7 @@
    and when a new worker takes over the page reloads itself once. Offline is
    unaffected — the network half just fails and the cache answers. */
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE = `value-${CACHE_VERSION}`;
 
 const SHELL = [

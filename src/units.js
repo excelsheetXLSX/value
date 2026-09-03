@@ -10,10 +10,12 @@ const DISPLAY = {volume:{unit:'L',per:1000},mass:{unit:'kg',per:1000},count:{uni
 const DIM_NAME = {volume:'volume',mass:'weight',count:'pieces'};
 /* weight <-> volume needs the product's density, which we don't know,
    so the round is locked to whichever kind the first filled row used */
+/* kept short enough to stay on one line on a phone — the sheet spells the
+   reason out again on the units you can't pick */
 const LOCK_COPY = {
-  mass:  'Comparing per kg — volume needs a density to convert',
-  volume:'Comparing per L — weight needs a density to convert',
-  count: 'Comparing per piece — weight and volume don’t apply'
+  mass:  'Comparing per kg — volume needs a density',
+  volume:'Comparing per L — weight needs a density',
+  count: 'Comparing per piece — nothing else converts'
 };
 const CANT = {
   mass:  'Needs a density to convert to kg',

@@ -254,7 +254,16 @@ function renderWinner(inPlay){
   }
   const best = inPlay[0], second = inPlay[1];
   const unit = DISPLAY[best.dim].unit;
-  let sub;
+  const v = values[best.r.id];
+
+  /* Per kg is the right basis for comparing, but it's a poor number to picture
+     when the pack in your hand is measured in grams. Show both, and only when
+     the amount was actually entered small. */
+  const alt = (v.unit === 'g' || v.unit === 'ml')
+    ? `<div class="w-alt">${fmt(best.up / 10)} per 100 ${v.unit}</div>`
+    : '';
+
+  let sub, extra = '';
   if(!second){
     sub = 'Only one row filled. Add another to compare.';
   }else{
@@ -265,13 +274,28 @@ function renderWinner(inPlay){
       const pct = ((second.up - best.up) / second.up) * 100;
       sub = `<b>${pct.toFixed(pct < 10 ? 1 : 0)}%</b> cheaper than <b>${other}</b>`;
     }
+    const bits = [];
+    /* a percentage is abstract in an aisle; what you actually keep is the
+       difference on the pack you're holding, at the runner-up's rate */
+    const packs = (num(v.amount) * UNITS[v.unit].to) / DISPLAY[best.dim].per;
+    const saving = second.up * packs - num(v.price);
+    if(saving > 0 && isFinite(saving)){
+      bits.push(`saves <b>${fmt(saving)}</b> on this ${v.amount} ${UNITS[v.unit].label}`);
+    }
+    if(inPlay.length > 2) bits.push(`cheapest of ${inPlay.length}`);
+    if(bits.length){
+      const line = bits.join(' · ');
+      extra = `<div class="w-extra">${line[0].toUpperCase() + line.slice(1)}</div>`;
+    }
   }
   paint($winner, best.r.color);
   $winner.className = 'live' + (lastWinnerId && lastWinnerId !== best.r.id ? ' flash' : '');
   $winner.innerHTML =
     `<div class="w-name">${esc(best.r.name.trim() || 'Untitled')}</div>
      <div class="w-price"><span class="w-num">${fmt(best.up)}</span><span class="w-unit">per ${unit}</span></div>
-     <div class="w-sub">${sub}</div>`;
+     ${alt}
+     <div class="w-sub">${sub}</div>
+     ${extra}`;
   lastWinnerId = best.r.id;
 }
 function esc(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -283,10 +307,13 @@ function buildManage(){
     const wrap = document.createElement('div');
     const eyeOn  = '<path d="M12 5c5 0 9 4.5 9 7s-4 7-9 7-9-4.5-9-7 4-7 9-7Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>';
     const eyeOff = '<path d="M3.3 2.3 1.9 3.7l3 3C3.1 8.2 2 10.2 2 12c0 2.5 4 7 10 7 1.9 0 3.5-.45 4.9-1.15l3.4 3.4 1.4-1.4ZM12 17c-4.4 0-7.4-3.1-8-5 .35-1.1 1.1-2.3 2.3-3.3l2.2 2.2A4 4 0 0 0 13.1 16Zm0-10c4.4 0 7.4 3.1 8 5-.3.95-.9 2-1.9 2.9l-2.6-2.6A4 4 0 0 0 10.7 7.2Z"/>';
+    wrap.className = 'mrow';
     wrap.innerHTML = `
       <div class="mr${r.hidden ? ' hidden' : ''}" style="--rc:${r.color}">
         <button class="swatch" aria-label="Change colour"></button>
         <input type="text" value="${esc(r.name)}" placeholder="Retailer name" aria-label="Retailer name" maxlength="24">
+      </div>
+      <div class="mr-actions">
         <button class="mini eye${r.hidden ? ' off' : ''}" aria-pressed="${!r.hidden}"
           aria-label="${r.hidden ? 'Show on main page' : 'Hide from main page'}">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">${r.hidden ? eyeOff : eyeOn}</svg></button>
