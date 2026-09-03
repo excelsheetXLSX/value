@@ -67,11 +67,12 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 }
 .bar h1{
   flex:1; margin:0; font-size:24px; font-weight:800; letter-spacing:-.03em;
-  display:flex; align-items:center; gap:9px;
+  display:flex; align-items:center; gap:8px;
 }
-/* the mark from the app icon, so the header and the home-screen icon read as
-   the same thing. No new colour — the bars use the text and primary tokens. */
-.bar h1 .mark{flex:none; display:block}
+/* the app icon's mark, mirrored and set after the name. Sized 24 so its bars
+   stand at the cap height of the 24px text beside them. No new colour — the
+   bars use the text and primary tokens. */
+.bar h1 .mark{flex:none; display:block; margin-left:-1px}
 .icon-btn{
   width:48px; height:48px; flex:none; border:0; border-radius:50%;
   background:transparent; display:grid; place-items:center; cursor:pointer;
