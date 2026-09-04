@@ -7,8 +7,8 @@
   "id": "/value/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F2F3EF",
-  "theme_color": "#F2F3EF",
+  "background_color": "#101412",
+  "theme_color": "#101412",
   "categories": ["shopping", "utilities"],
   "icons": [
     {
