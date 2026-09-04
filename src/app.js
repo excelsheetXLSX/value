@@ -367,9 +367,11 @@ function renderWinner(inPlay){
   paint($winner, best.r.color);
   $winner.className = 'live' + (changed ? ' flash' : '');
   $winner.innerHTML =
-    `<div class="w-head"><span class="w-name">${esc(best.r.name.trim() || 'Untitled')}</span>${rank}</div>
-     <div class="w-price"><span class="w-num"></span><span class="w-unit">per ${unit}</span></div>
-     <div class="w-verdict">${verdict}</div>
+    `<div class="w-main">
+       <div class="w-head"><span class="w-name">${esc(best.r.name.trim() || 'Untitled')}</span>${rank}</div>
+       <div class="w-price"><span class="w-num"></span><span class="w-unit">per ${unit}</span></div>
+       <div class="w-verdict">${verdict}</div>
+     </div>
      ${stats.length ? `<div class="w-stats">${stats.map(([n, l]) =>
         `<div class="w-stat"><b>${n}</b><span>${l}</span></div>`).join('')}</div>` : ''}`;
 
