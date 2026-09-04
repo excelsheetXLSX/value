@@ -13,6 +13,7 @@ const visible = () => retailers.filter(r => !r.hidden);
 let retailers = [];
 let values = {};          // id -> {amount, unit, price}
 let lockDim = null;
+let lastPickedUnit = null;    /* the last unit chosen via the sheet — offered to the next empty row */
 let lastWinnerId = null;
 let lastWinnerUp = null;      /* the number the counter animates from */
 let lastResult = null;        /* the previous session's winner, for the empty state */
@@ -71,6 +72,18 @@ function syncThemeColor(){
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', bg));
 }
 
+/* An installed standalone app is usually resumed by the OS rather than
+   reloaded, so the boot-time sync above can miss a resume; re-run it on
+   every return to the app. Also nudge the service worker to check for a
+   new deploy right away instead of waiting on its own periodic check. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'visible') return;
+  syncThemeColor();
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+  }
+});
+
 /* ============ rows ============ */
 
 function setUnitLabel(btn, unit){
@@ -116,6 +129,7 @@ function renderSheet(){
   $sheetGroups.querySelectorAll('.chip').forEach(b => b.onclick = () => {
     if(!sheetRow) return;              /* sheet already closing — ignore stray taps */
     values[sheetRow.id].unit = b.dataset.u;
+    lastPickedUnit = b.dataset.u;
     const ui = rowEls[sheetRow.id];
     if(ui) setUnitLabel(ui.unitEl, b.dataset.u);
     const id = sheetRow.id;
@@ -170,7 +184,20 @@ function buildRows(){
     priceEl.value = v.price;
     setUnitLabel(unitEl, v.unit);
 
-    bindNumeric(amountEl, val => { v.amount = val; onChange(r.id); });
+    bindNumeric(amountEl, val => {
+      v.amount = val;
+      /* offer the last unit the user actually picked to a row that hasn't
+         had one chosen yet, as soon as they start entering it — replaces
+         having to reopen the sheet for every retailer. Only ever fires once
+         per row (v.unit stops being empty right after), never overrides an
+         explicit choice, and never crosses the round's dimension lock. */
+      if(val && !v.unit && lastPickedUnit &&
+         (!lockDim || UNITS[lastPickedUnit].dim === lockDim)){
+        v.unit = lastPickedUnit;
+        setUnitLabel(unitEl, v.unit);
+      }
+      onChange(r.id);
+    });
     bindNumeric(priceEl,  val => { v.price  = val; onChange(r.id); });
     unitEl  .addEventListener('click', () => openSheet(r));
     clearEl .addEventListener('click', () => {
@@ -451,7 +478,7 @@ function buildManage(){
     retailers = DEFAULTS.map(d => ({id:uid(), ...d, hidden:false}));
     values = {};
     retailers.forEach(r => values[r.id] = {amount:'',unit:'',price:''});
-    lockDim = null; lastWinnerId = null;
+    lockDim = null; lastPickedUnit = null; lastWinnerId = null;
     save(); buildRows(); buildManage(); recompute();
   };
   $manageBody.appendChild(reset);
@@ -467,7 +494,7 @@ function move(i,d){
 /* ============ chrome ============ */
 $clearAll.onclick = () => {
   retailers.forEach(r => values[r.id] = {amount:'',unit:'',price:''});
-  lockDim = null; lastWinnerId = null;
+  lockDim = null; lastPickedUnit = null; lastWinnerId = null;
   buildRows(); recompute(); save();
 };
 document.getElementById('theme').onclick = () => {

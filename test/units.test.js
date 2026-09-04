@@ -139,3 +139,26 @@ test('count never mixes with weight or volume', () => {
   ];
   assert.deepEqual(inPlay(rows).map(r => r.id), ['a']);
 });
+
+/* ---------- remembered unit auto-applies to the next empty row ---------- */
+
+/* mirrors the guard in buildRows()'s amount-field handler in app.js: offer
+   the last unit the user actually picked, but never across the round's lock */
+function canAutoApply(lastPickedUnit, lockDim){
+  return !!lastPickedUnit && (!lockDim || UNITS[lastPickedUnit].dim === lockDim);
+}
+
+test('a remembered unit auto-applies within the locked dimension', () => {
+  assert.ok(canAutoApply('g', 'mass'));
+  assert.ok(canAutoApply('kg', 'mass'));
+});
+
+test('a remembered unit is blocked once the round is locked to a different dimension', () => {
+  assert.ok(!canAutoApply('g', 'volume'));
+  assert.ok(!canAutoApply('L', 'mass'));
+});
+
+test('a remembered unit applies freely before any row has locked the round', () => {
+  assert.ok(canAutoApply('g', null));
+  assert.ok(!canAutoApply(null, null));   // nothing picked yet — nothing to offer
+});

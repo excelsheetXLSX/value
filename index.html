@@ -9,6 +9,7 @@
      otherwise get a status bar painted for a theme that isn't on screen -->
 <meta name="theme-color" content="#F2F3EF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101412" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Value</title>
@@ -22,17 +23,19 @@
 </head>
 <body>
 
-<header class="bar">
-  <h1>Value<svg class="mark" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="12" width="5" height="8" rx="2" fill="var(--primary)"/><g fill="currentColor"><rect x="9.5" y="8" width="5" height="12" rx="2"/><rect x="16.5" y="4" width="5" height="16" rx="2"/></g></svg></h1>
-  <button class="icon-btn" id="theme" aria-label="Switch theme">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
-  </button>
-  <button class="text-btn" id="clearAll" disabled>Clear all</button>
-</header>
+<div class="pin">
+  <header class="bar">
+    <h1>Value<svg class="mark" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="12" width="5" height="8" rx="2" fill="var(--primary)"/><g fill="currentColor"><rect x="9.5" y="8" width="5" height="12" rx="2"/><rect x="16.5" y="4" width="5" height="16" rx="2"/></g></svg></h1>
+    <button class="icon-btn" id="theme" aria-label="Switch theme">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+    </button>
+    <button class="text-btn" id="clearAll" disabled>Clear all</button>
+  </header>
 
-<section id="winner" aria-live="polite">
-  <div class="w-empty">Fill in a row to start comparing.</div>
-</section>
+  <section id="winner" aria-live="polite">
+    <div class="w-empty">Fill in a row to start comparing.</div>
+  </section>
+</div>
 
 <div id="lock">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 9V7a5 5 0 0 0-10 0v2H5v12h14V9Zm-8-2a3 3 0 0 1 6 0v2H9Z"/></svg>

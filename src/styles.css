@@ -30,7 +30,6 @@
   --danger:#D32215;
   --tint:18%; --row-tint:13%; --field-tint:9%;
   --e1:0 1px 2px rgba(25,28,26,.12), 0 1px 3px 1px rgba(25,28,26,.06);
-  --e2:0 2px 6px 2px rgba(25,28,26,.08), 0 1px 2px rgba(25,28,26,.12);
   --r-lg:28px; --r-md:20px; --r-sm:14px; --r-xs:10px;
 }
 html[data-theme="dark"]{
@@ -39,7 +38,7 @@ html[data-theme="dark"]{
   --primary:#46C9AC; --on-primary:#00382F; --primary-container:#00594B;
   --danger:#FF8A80;
   --tint:26%; --row-tint:19%; --field-tint:12%;
-  --e1:none; --e2:none;
+  --e1:none;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 svg{shape-rendering:geometricPrecision}
@@ -60,8 +59,13 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 :focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
 /* ---------- top bar ---------- */
-.bar{
+/* .bar and #winner pin together as one unit, so the result stays in view
+   while .rows scrolls underneath. One sticky ancestor rather than two
+   independently-sticky siblings — one opaque region, no seam between them. */
+.pin{
   position:sticky; top:0; z-index:20; background:var(--bg);
+}
+.bar{
   display:flex; align-items:center; gap:8px;
   padding:calc(10px + env(safe-area-inset-top)) 0 10px;
 }
@@ -88,13 +92,18 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 /* ---------- winner ---------- */
 #winner{
   --rc:var(--outline); --rc-edge:var(--outline);
-  border-radius:var(--r-lg); padding:22px 22px 20px 22px; margin-bottom:12px;
+  border-radius:var(--r-md); padding:14px 16px 12px 16px; margin-bottom:12px;
   background:var(--surface);
-  border-left:14px solid var(--rc);
-  box-shadow:var(--e2);
-  min-height:132px; display:flex; flex-direction:column; justify-content:center;
+  border-left:12px solid var(--rc);
+  display:flex; flex-direction:column; justify-content:center;
 }
+/* Pinned at the top now, so its height can't be allowed to change with its
+   content — that swing (empty -> one row -> two rows with stats) was what
+   turned into a scroll jump while typing into a lower row. min-height only
+   on the live state: a one-row result simply centres within the same box a
+   two-row result fills, so nothing below it ever has to move. */
 #winner.live{
+  min-height:165px;
   background:color-mix(in srgb, var(--rc) var(--tint), var(--surface));
 }
 /* Three steps of hierarchy, not five lines of grey: who won, at what rate,
@@ -102,7 +111,7 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
    carries no bold at all; scattering bold across every line was what made
    this card read as a paragraph instead of an answer. */
 .w-head{display:flex;align-items:center;gap:10px;margin-bottom:2px}
-.w-name{font-size:16px;font-weight:700;color:var(--on);min-width:0;
+.w-name{font-size:14px;font-weight:700;color:var(--on);min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .w-rank{
   margin-left:auto; flex:none; font-size:11px; font-weight:700; letter-spacing:.02em;
@@ -110,14 +119,14 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
   background:color-mix(in srgb, var(--on) 9%, transparent);
 }
 .w-price{
-  display:flex; align-items:baseline; gap:9px; margin:0 0 10px;
+  display:flex; align-items:baseline; gap:9px; margin:0 0 6px;
 }
 .w-num{
-  font-size:clamp(42px,13.5vw,58px); font-weight:800; line-height:.95;
+  font-size:clamp(34px,10.5vw,46px); font-weight:800; line-height:.95;
   letter-spacing:-.035em; font-variant-numeric:tabular-nums lining;
 }
-.w-unit{font-size:15px;font-weight:700;color:var(--muted)}
-.w-verdict{font-size:14px;color:var(--muted)}
+.w-unit{font-size:13px;font-weight:700;color:var(--muted)}
+.w-verdict{font-size:13px;color:var(--muted)}
 .w-verdict b{color:var(--on);font-weight:700}
 /* the runner-up is named in its own brand colour, so the row it refers to is
    findable without reading. Same fill/edge split as everywhere else: the edge
@@ -126,11 +135,11 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 /* the supporting figures as labelled stats rather than a run-on sentence of
    dot separators — each number gets its own weight and its own caption */
 .w-stats{
-  display:flex; gap:26px; margin-top:10px; padding-top:10px;
+  display:flex; gap:26px; margin-top:8px; padding-top:8px;
   border-top:1px solid color-mix(in srgb, var(--on) 12%, transparent);
 }
-.w-stat b{display:block; font-size:16px; font-weight:700; color:var(--on); line-height:1.15}
-.w-stat span{display:block; font-size:11px; color:var(--muted); margin-top:2px}
+.w-stat b{display:block; font-size:14px; font-weight:700; color:var(--on); line-height:1.15}
+.w-stat span{display:block; font-size:10.5px; color:var(--muted); margin-top:2px}
 .w-empty{font-size:16px;color:var(--muted);font-weight:500}
 .w-last{font-size:12.5px;color:var(--muted);margin-top:7px;opacity:.85}
 
@@ -168,8 +177,7 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
 .row.filled{background:color-mix(in srgb, var(--rc) var(--row-tint), var(--surface))}
 .row.filled .field input,
 .row.filled .field .unit-btn{background:color-mix(in srgb, var(--rc) var(--field-tint), var(--surface-2))}
-.row.filled .field input:focus,
-.row.filled .field .unit-btn:active{background:color-mix(in srgb, var(--rc) calc(var(--field-tint) * 2), var(--surface-2))}
+.row.filled .field input:focus{background:color-mix(in srgb, var(--rc) calc(var(--field-tint) * 2), var(--surface-2))}
 .row-name .untitled{color:var(--muted);font-weight:500}
 .row-top{display:flex;align-items:center;gap:10px;min-height:32px}
 .row-name{flex:1;font-size:15px;font-weight:600;letter-spacing:.01em;min-width:0;
@@ -199,7 +207,6 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
   outline:2px solid var(--rc-edge); outline-offset:2px;
   background:var(--surface-3);
 }
-.field .unit-btn:active{background:var(--surface-3)}
 .field label{
   position:absolute; left:13px; top:7px; font-size:11px; font-weight:600;
   color:var(--muted); letter-spacing:.03em; pointer-events:none;
@@ -299,17 +306,20 @@ details.manage[open]>summary .chev{transform:rotate(180deg)}
 .add.reset.armed{color:var(--danger);border-color:var(--danger);font-weight:600}
 .hint{font-size:13px;color:var(--muted);margin:14px 2px 0;text-align:center}
 /* a small give under the finger — the app is used one-handed and taps
-   otherwise land with no acknowledgement but a colour change */
-.icon-btn,.text-btn,.mini,.swatch,.chip,.add,.row-clear,.field .unit-btn{
+   otherwise land with no acknowledgement but a colour change. The unit
+   button is deliberately left out: tapping it always opens the sheet
+   immediately, so its own press feedback had no time to read as feedback —
+   it just flashed as the sheet took over. */
+.icon-btn,.text-btn,.mini,.swatch,.chip,.add,.row-clear{
   transition:transform .12s cubic-bezier(.2,0,0,1), background-color .12s;
 }
 .icon-btn:active,.text-btn:active,.mini:active,.row-clear:active{transform:scale(.92)}
 .swatch:active,.palette button:active{transform:scale(.9)}
-.chip:active,.add:active,.field .unit-btn:active{transform:scale(.975)}
+.chip:active,.add:active{transform:scale(.975)}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (prefers-reduced-motion:reduce){
   .icon-btn:active,.text-btn:active,.mini:active,.row-clear:active,
   .swatch:active,.palette button:active,
-  .chip:active,.add:active,.field .unit-btn:active{transform:none}
+  .chip:active,.add:active{transform:none}
 }
