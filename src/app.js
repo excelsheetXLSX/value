@@ -51,11 +51,25 @@ const uid = () => Math.random().toString(36).slice(2,9);
   if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else document.documentElement.dataset.theme =
     matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  syncThemeColor();
 
   buildRows(); buildManage(); recompute();
 })();
 
 function save(){ store.set('upc:v1', {version:DATA_VERSION, retailers, values}); }
+
+/* The two <meta name=theme-color media=prefers-color-scheme> tags in
+   index.html paint the status bar before this script runs, matched to the
+   OS's own scheme. But Value's theme is a stored per-app preference that can
+   disagree with the OS — toggle it manually, or open the app after the OS
+   changed but before you did — and a status bar painted for the wrong theme
+   turns invisible against dark content. Once the real theme is known, force
+   both tags to it: only the one the browser is honouring matters, but there
+   is no cheap way to ask which that is, so setting both is the whole fix. */
+function syncThemeColor(){
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', bg));
+}
 
 /* ============ rows ============ */
 
@@ -460,6 +474,7 @@ document.getElementById('theme').onclick = () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   store.set('upc:theme', next);
+  syncThemeColor();
   buildRows(); recompute();   /* brand colours are adjusted per theme */
 };
 

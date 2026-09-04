@@ -3,8 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- pre-JS paint only, matched to the OS scheme so there's no flash before boot
+     runs — app.js overwrites these to the app's own theme right after, since
+     a user who toggled dark inside Value while their OS stayed light would
+     otherwise get a status bar painted for a theme that isn't on screen -->
 <meta name="theme-color" content="#F2F3EF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101412" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Value</title>
 <meta name="description" content="Compare grocery prices per litre, kilo or piece.">
 <link rel="manifest" href="manifest.json">
