@@ -68,7 +68,18 @@ function save(){ store.set('upc:v1', {version:DATA_VERSION, retailers, values});
    both tags to it: only the one the browser is honouring matters, but there
    is no cheap way to ask which that is, so setting both is the whole fix. */
 function syncThemeColor(){
-  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  /* Installed (standalone) apps paint the status bar background from
+     manifest.json's fixed theme_color for the whole life of the install —
+     it never re-reads the live page, confirmed by it staying stable through
+     a full reinstall. So the icon-contrast decision has to agree with that
+     fixed value too, not the in-app toggle, or dark icons end up on a dark
+     bar (or the reverse) whenever the toggle disagrees with the manifest.
+     A normal browser tab has no such fixed background, so it keeps
+     following the live theme as before. */
+  const standalone = matchMedia('(display-mode: standalone)').matches;
+  const bg = standalone
+    ? '#101412'   /* must match manifest.json's theme_color */
+    : getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', bg));
 }
 
@@ -221,6 +232,10 @@ function bindNumeric(el, commit){
     }
     commit(clean);
   });
+  /* enterkeyhint only changes the keyboard's label — it dismisses nothing
+     on its own. Every keystroke already commits via the input listener
+     above, so blurring on Enter loses nothing. */
+  el.addEventListener('keydown', e => { if(e.key === 'Enter') el.blur(); });
 }
 
 function setRowName(el, r){
@@ -364,6 +379,14 @@ function renderWinner(inPlay){
     if(inPlay.length > 2) rank = `<span class="w-rank">cheapest of ${inPlay.length}</span>`;
   }
 
+  /* #1 and #2 are already named above — this is what's beyond that, so the
+     whole field is visible without duplicating the verdict line. Forced to
+     one scrollable line regardless of roster size, so it can never grow
+     the card the way an always-taller list would. */
+  const more = inPlay.length > 2
+    ? `then ${inPlay.slice(2).map(x => `${esc(x.r.name.trim() || 'Untitled')} ${fmt(x.up)}`).join(', ')}`
+    : '';
+
   paint($winner, best.r.color);
   $winner.className = 'live' + (changed ? ' flash' : '');
   $winner.innerHTML =
@@ -371,6 +394,7 @@ function renderWinner(inPlay){
        <div class="w-head"><span class="w-name">${esc(best.r.name.trim() || 'Untitled')}</span>${rank}</div>
        <div class="w-price"><span class="w-num"></span><span class="w-unit">per ${unit}</span></div>
        <div class="w-verdict">${verdict}</div>
+       ${more ? `<div class="w-more">${more}</div>` : ''}
      </div>
      ${stats.length ? `<div class="w-stats">${stats.map(([n, l]) =>
         `<div class="w-stat"><b>${n}</b><span>${l}</span></div>`).join('')}</div>` : ''}`;

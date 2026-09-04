@@ -115,7 +115,7 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
    (.w-empty, optionally .w-last) that still need to stack vertically, not
    sit side by side. */
 #winner.live{
-  min-height:140px;
+  min-height:160px;
   flex-direction:row; align-items:center; justify-content:space-between;
   background:color-mix(in srgb, var(--rc) var(--tint), var(--surface));
 }
@@ -146,6 +146,16 @@ button,input,select{font:inherit;color:inherit;font-variant-numeric:tabular-nums
    findable without reading. Same fill/edge split as everywhere else: the edge
    is what keeps it legible as text. */
 .w-verdict .who{font-weight:700}
+/* what's ranked beyond #1 and #2 — the verdict line above already names
+   both of those, this is the rest of the field. One scrollable line no
+   matter how many retailers are in play, so a long roster can never grow
+   the card the way an always-taller list would. */
+.w-more{
+  font-size:11px; color:var(--muted); margin-top:3px;
+  white-space:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.w-more::-webkit-scrollbar{display:none}
 /* the supporting figures as labelled stats on the card's right side, stacked
    — mirrors the coloured border on the left, so the two sit as opposite ends
    of the card with no divider needed between them */
