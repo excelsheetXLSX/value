@@ -7,21 +7,6 @@ const UNITS = {
   pc:{dim:'count', to:1,   label:'pc'}
 };
 const DISPLAY = {volume:{unit:'L',per:1000},mass:{unit:'kg',per:1000},count:{unit:'pc',per:1}};
-const DIM_NAME = {volume:'volume',mass:'weight',count:'pieces'};
-/* weight <-> volume needs the product's density, which we don't know,
-   so the round is locked to whichever kind the first filled row used */
-/* kept short enough to stay on one line on a phone — the sheet spells the
-   reason out again on the units you can't pick */
-const LOCK_COPY = {
-  mass:  'Comparing per kg — volume needs a density',
-  volume:'Comparing per L — weight needs a density',
-  count: 'Comparing per piece — nothing else converts'
-};
-const CANT = {
-  mass:  'Needs a density to convert to kg',
-  volume:'Needs a density to convert to L',
-  count: 'Doesn’t convert to pieces'
-};
 
 function unitPrice(amount, unitKey, price){
   const u = UNITS[unitKey];
@@ -43,6 +28,7 @@ function fmt(v){
 /* relative epsilon — raw floats drift ~1e-17 on equivalent inputs */
 const eq = (a,b) => Math.abs(a-b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
 
+/* orders the unit strip. Weight first because groceries mostly are. */
 const GROUPS = [
   {dim:'mass',   label:'Weight', units:['g','kg']},
   {dim:'volume', label:'Volume', units:['ml','L']},
@@ -58,5 +44,21 @@ function cleanNum(s){
   return v;
 }
 
-export {UNITS, DISPLAY, DIM_NAME, LOCK_COPY, CANT, GROUPS,
-        unitPrice, num, fmt, eq, cleanNum};
+/* The unit is chosen once for the whole round, so changing it has to carry the
+   amounts already typed with it: 500 in grams is 0.5 in kilos, and the pack in
+   your hand did not change size. Only within one dimension — g -> ml is not a
+   conversion, it is a different question, so the numbers are left alone.
+   toPrecision(12) drops the float tail: 500/1000 is exact, but 1.1 kg -> g
+   would otherwise land on 1100.0000000000002. */
+function convertAmount(str, from, to){
+  if(from === to) return str;
+  const a = UNITS[from], b = UNITS[to];
+  if(!a || !b || a.dim !== b.dim) return str;
+  const n = num(str);
+  if(!isFinite(n)) return str;
+  const v = parseFloat(((n * a.to) / b.to).toPrecision(12));
+  return String(v);
+}
+
+export {UNITS, DISPLAY, GROUPS,
+        unitPrice, num, fmt, eq, cleanNum, convertAmount};

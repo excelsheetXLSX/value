@@ -3,9 +3,9 @@
 Read `CLAUDE.md` first — it holds the invariants. Work phases in order; each
 phase should leave the app working.
 
-**Status:** Phases 0-2 are done. Live at https://excelsheetxlsx.github.io/value/
-(GitHub Pages, `main` branch). The app is called **Value**. Phase 3 is waiting
-on real use in a store.
+**Status:** Phases 0-2 and 3 are done. Live at
+https://excelsheetxlsx.github.io/value/ (GitHub Pages, `main` branch). The app
+is called **Value**.
 
 ---
 
@@ -69,9 +69,24 @@ Currently it's a page, not an installable app.
    `system-ui` fallback stack.
 4. Test with the network disabled and installed to the home screen.
 
-## Phase 3 — Field-test fixes
+## Phase 3 — Field-test fixes — done
 
-Do this after actually using it in a store a few times. Likely items:
+Real use in a store turned up three things, and one change fixed all three:
+**pick the unit once at the top, drop the unit field from every row, and put
+each row on a single line.**
+
+1. *Too much scrolling.* Rows were ~110px and the pinned result card 160px, so
+   five retailers overflowed the screen and you scrolled between the field you
+   were typing into and the answer. Rows are now ~58px and the result is the
+   winning row itself, so a full round fits on one screen.
+2. *The wrong comparison was the default.* The job is usually comparing brands
+   of one product in one store, not one product across stores. Two tabs now:
+   **Options** (the default) and **Retailers**.
+3. *The unit was asked five times.* One unit for the whole round, in a strip
+   under the tabs. That also retired the dimension lock, the per-row unit
+   button, and the bottom sheet behind each one — see CLAUDE.md §2.
+
+Still open from the original list:
 
 - **Light-mode colour spread.** Noon's pale yellow and Carrefour's dark navy
   sit at 1.2:1 and 8.7:1 against white. The edge outline makes both visible but
@@ -80,9 +95,14 @@ Do this after actually using it in a store a few times. Likely items:
   Only do this if it actually bothers you in use.
 - **Density opt-in.** An explicit per-round toggle to treat 1 L as 1 kg, for
   water and milk. Must be labelled and off by default. See CLAUDE.md §2.
+  (Cheaper to build now: with one unit per round, this is one toggle on the
+  unit strip rather than a per-row decision.)
 - **Lulu's real hex.** `#00A650` is a guess. Sample their logo.
 - **Reordering.** Currently ↑/↓ buttons in Manage. Drag-to-reorder is nicer but
   fiddly on touch; only switch if the buttons annoy you in practice.
+- **Options worth keeping.** If the same brands come up every trip, options
+  could become a small saved roster like retailers. Only if you find yourself
+  retyping the same names.
 
 ## Phase 4 — Optional
 
@@ -106,5 +126,11 @@ one-screen, one-shot utility.
 - Watch for duplicate CSS declarations when editing shorthand properties. A
   second `box-shadow` on `#sheet` silently killed the accent edge once; the
   later declaration wins and nothing errors.
-- The prototype is the spec. When in doubt about intended behaviour, run
-  `unit-price.html` and compare.
+- The prototype in `reference/` is the original spec, but it predates the
+  one-screen redesign — CLAUDE.md is the authority where they disagree.
+- Verify layout claims by measuring, not by screenshot: `scrollHeight` against
+  `innerHeight` at 375x812 is what "fits on one screen" actually means.
+- Programmatic `scrollTo()` does not fire scroll events in the in-app browser.
+  Anything driven by a scroll listener has to be tested with a real scroll
+  gesture, and `requestAnimationFrame` does not run at all while the preview
+  pane is hidden.

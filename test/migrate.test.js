@@ -61,16 +61,55 @@ test("a retailer the user added keeps its own name and colour", () => {
 test('the dropped dz unit is cleared, other saved values are untouched', () => {
   const s = v1Roster();
   migrate(s);
-  assert.equal(s.values.r1.unit, '');
-  assert.equal(s.values.r1.amount, '12');   // only the unit is invalid
+  assert.equal(s.values.r1.amount, '12');   // only the unit was ever invalid
   assert.equal(s.values.r1.price, '30');
-  assert.deepEqual(s.values.r3, {amount: '1', unit: 'L', price: '5'});
+  assert.deepEqual(s.values.r3, {amount: '1', price: '5'});
+});
+
+/* ---------- v5: one unit for the round, and the second comparison ---------- */
+
+test('v5 lifts the per-row unit into one unit for the whole round', () => {
+  const s = v1Roster();
+  migrate(s);
+  /* r1 held the dropped dz, cleared to '' by v3; r3 held a real choice */
+  assert.equal(s.unit, 'L');
+  for(const id in s.values){
+    assert.ok(!('unit' in s.values[id]), `${id} still carries a per-row unit`);
+  }
+});
+
+test('a roster that never picked a unit lands on a usable default', () => {
+  const s = {
+    version: 4,
+    retailers: [{id: 'r1', name: 'Lulu', color: '#00A650'}],
+    values: {r1: {amount: '', unit: '', price: ''}}
+  };
+  migrate(s);
+  assert.equal(s.unit, 'kg');
+});
+
+test('v5 seeds the Options comparison without touching the retailers', () => {
+  const s = v1Roster();
+  const names = s.retailers.map(r => r.name).length;
+  migrate(s);
+  assert.equal(s.mode, 'options');
+  assert.equal(s.options.length, 3);
+  assert.deepEqual(s.optionValues, {});
+  s.options.forEach(o => {
+    assert.equal(o.name, '');
+    assert.match(o.color, /^#[0-9A-F]{6}$/i);
+    assert.ok(o.id, 'an option needs an id to key its values by');
+  });
+  assert.equal(new Set(s.options.map(o => o.id)).size, 3, 'ids must be distinct');
+  assert.equal(s.retailers.length, names, 'the roster is not rebuilt');
 });
 
 test('migrations are idempotent — running twice changes nothing', () => {
   const once = v1Roster();  migrate(once);
   const twice = v1Roster(); migrate(twice); migrate({...twice, version: DATA_VERSION});
-  assert.deepEqual(twice, once);
+  /* option ids are random per run, so compare everything else */
+  const strip = x => ({...x, options: x.options.map(o => ({name: o.name, color: o.color}))});
+  assert.deepEqual(strip(twice), strip(once));
 });
 
 test('a roster already at the current version is left alone', () => {
@@ -85,7 +124,7 @@ test('a roster already at the current version is left alone', () => {
   assert.deepEqual(s, before);
 });
 
-test('starting from v3 only runs v4', () => {
+test('starting from v3 runs v4 and v5, but not v3 again', () => {
   const s = {
     version: 3,
     retailers: [{id: 'r1', name: 'Noon', color: '#C9BC00'}, {id: 'r2', name: 'Zzz', color: '#111111'}],
@@ -94,7 +133,9 @@ test('starting from v3 only runs v4', () => {
   migrate(s);
   assert.equal(s.retailers[0].color, '#FEEE00');       // v4 ran
   assert.deepEqual(s.retailers.map(r => r.name), ['Noon', 'Zzz']);
-  assert.equal(s.values.r1.unit, 'dz', 'v3 must not re-run on a v3 roster');
+  /* v3 would have cleared dz; v5 lifts whatever was there into the round's
+     unit, which proves v3 did not re-run on a roster already at v3 */
+  assert.equal(s.unit, 'dz');
 });
 
 test('every migration between 2 and DATA_VERSION exists', () => {

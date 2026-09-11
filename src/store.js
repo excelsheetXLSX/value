@@ -20,7 +20,7 @@ const DEFAULTS = [
   {name:'ADCOOP',    color:'#4E3080'}
 ];
 
-const DATA_VERSION = 4;
+const DATA_VERSION = 5;
 /* saved rosters aren't rebuilt from DEFAULTS, so changes to the shipped
    list need a migration keyed to the version that introduced them */
 const MIGRATIONS = {
@@ -40,8 +40,25 @@ const MIGRATIONS = {
     const brand = {Lulu:'#00A650', Carrefour:'#004A97', Noon:'#FEEE00',
                    'Amazon.ae':'#FF9900', ADCOOP:'#4E3080'};
     s.retailers.forEach(r => { const c = brand[r.name.trim()]; if(c) r.color = c; });
+  },
+  5: s => {
+    /* The unit used to be per row, with a dimension lock stopping the rows
+       from disagreeing. It is now chosen once for the whole round, which makes
+       disagreement impossible rather than merely detected. Keep whichever unit
+       the user had actually picked — the rows it belonged to keep their
+       amounts and prices untouched. */
+    const seen = Object.values(s.values || {}).map(v => v && v.unit).filter(Boolean);
+    s.unit = seen[0] || 'kg';
+    for(const id in (s.values || {})) delete s.values[id].unit;
+    /* the second comparison: brands of one product in one store */
+    s.mode = 'options';
+    s.options = [0,1,2].map(i => ({id: oid(), name:'', color: PALETTE[i]}));
+    s.optionValues = {};
   }
 };
+/* migrations run outside the app too (node --test), so they can't lean on
+   anything the page provides */
+const oid = () => Math.random().toString(36).slice(2,9);
 function migrate(saved){
   const from = saved.version || 1;
   for(let v = from + 1; v <= DATA_VERSION; v++) if(MIGRATIONS[v]) MIGRATIONS[v](saved);

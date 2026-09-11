@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {UNITS, DISPLAY, unitPrice, num, fmt, eq, cleanNum} from '../src/units.js';
+import {UNITS, DISPLAY, unitPrice, num, fmt, eq, cleanNum, convertAmount} from '../src/units.js';
 
 /* ---------- conversions ---------- */
 
@@ -97,68 +97,85 @@ test('cleanNum() survives paste, swipe-typing and a physical keyboard', () => {
   assert.equal(cleanNum('12'), '12');
 });
 
-/* ---------- the dimension lock (CLAUDE.md §2) ---------- */
+/* ---------- one unit for every row (CLAUDE.md §2) ---------- */
 
-/* mirrors recompute(): the first completed row fixes the dimension,
-   and only rows in that dimension are compared */
-function inPlay(rows, seedId){
-  const complete = rows
-    .map(r => ({...r, up: unitPrice(r.amount, r.unit, r.price)}))
+/* The round's unit used to be per row, with a lock that let the first
+   completed row fix the dimension and excluded the rest. The unit is now
+   chosen once for the whole comparison, so weight and volume can't be mixed
+   at all rather than being mixed and then caught. These tests hold the
+   guarantee, not the mechanism that used to enforce it. */
+
+/* mirrors recompute(): every row is priced in the one chosen unit */
+function inPlay(rows, unit){
+  return rows
+    .map(r => ({...r, up: unitPrice(r.amount, unit, r.price)}))
     .filter(r => r.up !== null)
-    .map(r => ({...r, dim: UNITS[r.unit].dim}));
-  if(!complete.length) return [];
-  const seed = complete.find(r => r.id === seedId) || complete[0];
-  return complete.filter(r => r.dim === seed.dim).sort((a, b) => a.up - b.up);
+    .sort((a, b) => a.up - b.up);
 }
 
-test('a mass row and a volume row never appear in the same comparison', () => {
+test('every row in a comparison is priced in the same dimension', () => {
   const rows = [
-    {id: 'a', amount: 1,   unit: 'L',  price: 5},
-    {id: 'b', amount: 500, unit: 'g',  price: 7.5},
-    {id: 'c', amount: 2,   unit: 'L',  price: 8}
+    {id: 'a', amount: 1000, price: 5},
+    {id: 'b', amount: 500,  price: 7.5},
+    {id: 'c', amount: 2000, price: 8}
   ];
-  const play = inPlay(rows);
-  assert.deepEqual(play.map(r => r.id), ['c', 'a']);   // 4.00/L beats 5.00/L
-  assert.ok(!play.some(r => r.dim === 'mass'));
+  for(const unit of Object.keys(UNITS)){
+    const dims = new Set(inPlay(rows, unit).map(() => UNITS[unit].dim));
+    assert.equal(dims.size, 1, `${unit} produced more than one dimension`);
+  }
 });
 
-test('the seed row decides which dimension wins the lock', () => {
+test('the chosen unit decides the whole comparison, not the first row', () => {
   const rows = [
-    {id: 'a', amount: 1,   unit: 'L', price: 5},
-    {id: 'b', amount: 500, unit: 'g', price: 7.5}
+    {id: 'a', amount: 1,   price: 5},
+    {id: 'b', amount: 0.5, price: 7.5}
   ];
-  assert.deepEqual(inPlay(rows, 'b').map(r => r.id), ['b']);
-  assert.deepEqual(inPlay(rows, 'a').map(r => r.id), ['a']);
+  /* same numbers, same ranking, whichever dimension is selected — because
+     there is only ever one dimension in play */
+  assert.deepEqual(inPlay(rows, 'L').map(r => r.id),  ['a', 'b']);
+  assert.deepEqual(inPlay(rows, 'kg').map(r => r.id), ['a', 'b']);
+  assert.equal(inPlay(rows, 'L')[0].up, inPlay(rows, 'kg')[0].up);
 });
 
-test('count never mixes with weight or volume', () => {
-  const rows = [
-    {id: 'a', amount: 6, unit: 'pc', price: 9},
-    {id: 'b', amount: 1, unit: 'kg', price: 9},
-    {id: 'c', amount: 1, unit: 'L',  price: 9}
-  ];
-  assert.deepEqual(inPlay(rows).map(r => r.id), ['a']);
+test('an unset unit prices nothing, so nothing can be compared', () => {
+  const rows = [{id: 'a', amount: 1, price: 5}, {id: 'b', amount: 2, price: 8}];
+  assert.deepEqual(inPlay(rows, ''), []);
+  assert.deepEqual(inPlay(rows, 'dz'), []);
 });
 
-/* ---------- remembered unit auto-applies to the next empty row ---------- */
+/* ---------- changing the unit carries the amounts with it ---------- */
 
-/* mirrors the guard in buildRows()'s amount-field handler in app.js: offer
-   the last unit the user actually picked, but never across the round's lock */
-function canAutoApply(lastPickedUnit, lockDim){
-  return !!lastPickedUnit && (!lockDim || UNITS[lastPickedUnit].dim === lockDim);
-}
+/* The pack in your hand did not change size when you tapped kg, so 500 g has
+   to become 0.5 kg. Across dimensions there is nothing to convert. */
 
-test('a remembered unit auto-applies within the locked dimension', () => {
-  assert.ok(canAutoApply('g', 'mass'));
-  assert.ok(canAutoApply('kg', 'mass'));
+test('amounts convert within a dimension', () => {
+  assert.equal(convertAmount('500', 'g', 'kg'), '0.5');
+  assert.equal(convertAmount('1.5', 'kg', 'g'), '1500');
+  assert.equal(convertAmount('750', 'ml', 'L'), '0.75');
+  assert.equal(convertAmount('2',   'L', 'ml'), '2000');
 });
 
-test('a remembered unit is blocked once the round is locked to a different dimension', () => {
-  assert.ok(!canAutoApply('g', 'volume'));
-  assert.ok(!canAutoApply('L', 'mass'));
+test('a converted amount still prices the same', () => {
+  const before = unitPrice(500, 'g', 7.5);
+  const after  = unitPrice(Number(convertAmount('500', 'g', 'kg')), 'kg', 7.5);
+  assert.ok(eq(before, after), `${before} vs ${after}`);
 });
 
-test('a remembered unit applies freely before any row has locked the round', () => {
-  assert.ok(canAutoApply('g', null));
-  assert.ok(!canAutoApply(null, null));   // nothing picked yet — nothing to offer
+test('the float tail is trimmed, not carried', () => {
+  /* 1.1 * 1000 / 1 is 1100.0000000000002 in raw floats */
+  assert.equal(convertAmount('1.1', 'kg', 'g'), '1100');
+  assert.equal(convertAmount('0.3', 'kg', 'g'), '300');
+});
+
+test('across dimensions the number is left exactly as typed', () => {
+  assert.equal(convertAmount('500', 'g', 'ml'), '500');
+  assert.equal(convertAmount('2', 'L', 'pc'), '2');
+  assert.equal(convertAmount('6', 'pc', 'kg'), '6');
+});
+
+test('nothing to convert stays nothing', () => {
+  assert.equal(convertAmount('', 'g', 'kg'), '');
+  assert.equal(convertAmount('.', 'g', 'kg'), '.');      // mid-typing
+  assert.equal(convertAmount('1', 'g', 'g'), '1');
+  assert.equal(convertAmount('1', 'zz', 'kg'), '1');     // unknown unit
 });

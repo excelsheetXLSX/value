@@ -1,51 +1,85 @@
 import {store, PALETTE, DEFAULTS, DATA_VERSION, migrate} from './store.js';
-import {UNITS, DISPLAY, DIM_NAME, LOCK_COPY, CANT, GROUPS,
-        unitPrice, num, fmt, eq, cleanNum} from './units.js';
-import {paint, fillColor, edgeColor} from './color.js';
+import {UNITS, DISPLAY, GROUPS,
+        unitPrice, num, fmt, eq, cleanNum, convertAmount} from './units.js';
+import {paint, fillColor} from './color.js';
 
-/* untitled retailers always sit at the end */
-function normalizeOrder(){
-  const titled = retailers.filter(r => r.name.trim());
-  const untitled = retailers.filter(r => !r.name.trim());
-  retailers = titled.concat(untitled);
-}
-const visible = () => retailers.filter(r => !r.hidden);
-let retailers = [];
-let values = {};          // id -> {amount, unit, price}
-let lockDim = null;
-let lastPickedUnit = null;    /* the last unit chosen via the sheet — offered to the next empty row */
+/* ============ state ============
+
+   Two comparisons share one screen:
+     retailers — one product across stores (the original)
+     options   — brands of one product in the store you're standing in
+   They keep separate lists and separate entries, and share the unit, since
+   the unit describes the product in your hand, not where you are.
+
+   The unit is chosen once for the whole round. That is what replaced the old
+   per-row unit and its dimension lock: with one unit for every row, weight and
+   volume cannot be mixed at all, rather than being mixed and then caught. */
+let data = {
+  version: DATA_VERSION,
+  mode: 'options',
+  unit: 'kg',
+  retailers: [],
+  values: {},          // retailer id -> {amount, price}
+  options: [],
+  optionValues: {}     // option id -> {amount, price}
+};
+
+const list = () => data.mode === 'options' ? data.options : data.retailers;
+const vals = () => data.mode === 'options' ? data.optionValues : data.values;
+const visible = () => list().filter(r => !r.hidden);
+/* options are lettered by position, so an unnamed one still has an identity */
+const labelOf = (r, i) => r.name.trim() ||
+  (data.mode === 'options' ? String.fromCharCode(65 + i) : 'Untitled');
+
 let lastWinnerId = null;
 let lastWinnerUp = null;      /* the number the counter animates from */
-let lastResult = null;        /* the previous session's winner, for the empty state */
+let lastResult = null;        /* the previous session's winner, for the hint line */
 let numAnim = null;
+let sumText = '';
 const rowEls = {};
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const uid = () => Math.random().toString(36).slice(2,9);
 
 const $rows = document.getElementById('rows');
-const $winner = document.getElementById('winner');
-const $lock = document.getElementById('lock');
-const $lockText = document.getElementById('lockText');
+const $units = document.getElementById('units');
+const $legend = document.getElementById('legend');
+const $sum = document.getElementById('sum');
 const $clearAll = document.getElementById('clearAll');
+const $manage = document.getElementById('manage');
 const $manageBody = document.getElementById('manageBody');
-const uid = () => Math.random().toString(36).slice(2,9);
+const $addOption = document.getElementById('addOption');
+const $hint = document.getElementById('hint');
+const $tabs = document.querySelectorAll('.tabs button');
+
+/* untitled retailers always sit at the end. Options are never reordered —
+   their letters come from their position, so sorting would rename them. */
+function normalizeOrder(){
+  const titled = data.retailers.filter(r => r.name.trim());
+  const untitled = data.retailers.filter(r => !r.name.trim());
+  data.retailers = titled.concat(untitled);
+}
 
 /* ============ boot ============ */
 (async function init(){
   const saved = await store.get('upc:v1');
   if(saved && Array.isArray(saved.retailers) && saved.retailers.length){
     migrate(saved);
-    retailers = saved.retailers;
-    values = saved.values || {};
+    data = {...data, ...saved, version: DATA_VERSION};
   }else{
-    retailers = DEFAULTS.map(d => ({id:uid(), ...d}));
+    data.retailers = DEFAULTS.map(d => ({id:uid(), ...d}));
   }
-  retailers.forEach(r => {
-    if(!values[r.id]) values[r.id] = {amount:'',unit:'',price:''};
+  if(!UNITS[data.unit]) data.unit = 'kg';
+  if(data.mode !== 'retailers') data.mode = 'options';
+  if(!Array.isArray(data.options) || !data.options.length){
+    data.options = [0,1,2].map(i => ({id:uid(), name:'', color:PALETTE[i]}));
+  }
+  data.retailers.forEach(r => {
     if(typeof r.name !== 'string') r.name = '';
     r.hidden = !!r.hidden;
   });
-  normalizeOrder();
+  seedValues();
 
+  normalizeOrder();
   lastResult = await store.get('upc:last');
 
   const t = await store.get('upc:theme');
@@ -54,10 +88,14 @@ const uid = () => Math.random().toString(36).slice(2,9);
     matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   syncThemeColor();
 
-  buildRows(); buildManage(); recompute();
+  renderUnits(); renderMode(); buildManage();
 })();
 
-function save(){ store.set('upc:v1', {version:DATA_VERSION, retailers, values}); }
+function seedValues(){
+  data.retailers.forEach(r => { if(!data.values[r.id]) data.values[r.id] = {amount:'',price:''}; });
+  data.options .forEach(r => { if(!data.optionValues[r.id]) data.optionValues[r.id] = {amount:'',price:''}; });
+}
+function save(){ store.set('upc:v1', data); }
 
 /* The two <meta name=theme-color media=prefers-color-scheme> tags in
    index.html paint the status bar before this script runs, matched to the
@@ -95,129 +133,106 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* ============ the unit, chosen once ============ */
+function renderUnits(){
+  $units.innerHTML = GROUPS.map(g =>
+    `<div class="ugroup">${g.units.map(u =>
+      `<button class="u" data-u="${u}" role="radio" aria-checked="${u === data.unit}"
+        aria-label="${g.label} in ${UNITS[u].label}">${UNITS[u].label}</button>`
+    ).join('')}</div>`
+  ).join('');
+  $units.querySelectorAll('.u').forEach(b => b.onclick = () => setUnit(b.dataset.u));
+}
+function setUnit(u){
+  if(!UNITS[u] || u === data.unit) return;
+  const from = data.unit;
+  data.unit = u;
+  /* the pack in your hand did not change size — carry the numbers across.
+     Across dimensions there is nothing to carry, so they are left as typed. */
+  if(UNITS[from].dim === UNITS[u].dim){
+    [data.values, data.optionValues].forEach(map => {
+      for(const id in map) map[id].amount = convertAmount(map[id].amount, from, u);
+    });
+  }
+  renderUnits(); buildRows(); recompute(); save();
+}
+const perUnit = () => DISPLAY[UNITS[data.unit].dim].unit;
+
+/* ============ modes ============ */
+function renderMode(){
+  $tabs.forEach(b => b.setAttribute('aria-selected', String(b.dataset.mode === data.mode)));
+  const opt = data.mode === 'options';
+  $addOption.hidden = !opt;
+  $manage.hidden = opt;
+  if(opt) $manage.open = false;
+  buildRows(); recompute();
+}
+$tabs.forEach(b => b.onclick = () => {
+  if(data.mode === b.dataset.mode) return;
+  data.mode = b.dataset.mode;
+  lastWinnerId = null; lastWinnerUp = null;
+  closeEditor();
+  renderMode(); save();
+});
+
 /* ============ rows ============ */
-
-function setUnitLabel(btn, unit){
-  btn.textContent = unit ? UNITS[unit].label : 'Select';
-  btn.classList.toggle('empty', !unit);
-}
-
-let sheetRow = null;
-const $sheet = document.getElementById('sheet');
-const $scrim = document.getElementById('scrim');
-const $sheetGroups = document.getElementById('sheetGroups');
-const $sheetTitle = document.getElementById('sheetTitle');
-
-function openSheet(r){
-  sheetRow = r;
-  $sheetTitle.textContent = r.name.trim() || 'Untitled';
-  paint($sheet, r.color);
-  renderSheet();
-  $sheet.classList.add('open');
-  $scrim.classList.add('open');
-  const first = $sheetGroups.querySelector('.chip:not([disabled])');
-  if(first) first.focus({preventScroll:true});
-}
-function closeSheet(){
-  $sheet.classList.remove('open');
-  $scrim.classList.remove('open');
-  const ui = sheetRow && rowEls[sheetRow.id];
-  if(ui) ui.unitEl.focus({preventScroll:true});
-  sheetRow = null;
-}
-function renderSheet(){
-  const cur = values[sheetRow.id].unit;
-  $sheetGroups.innerHTML = GROUPS.map(g => {
-    const off = lockDim && lockDim !== g.dim;
-    return `<div class="ugroup${off ? ' off' : ''}">
-      <h3>${g.label}</h3>
-      <div class="chips${g.units.length === 1 ? ' single' : ''}">${g.units.map(u =>
-        `<button class="chip" data-u="${u}" aria-pressed="${u===cur}"${off ? ' disabled' : ''}>${UNITS[u].label}</button>`
-      ).join('')}</div>
-      ${off ? `<p class="why">${CANT[lockDim]}</p>` : ''}
-    </div>`;
-  }).join('');
-  $sheetGroups.querySelectorAll('.chip').forEach(b => b.onclick = () => {
-    if(!sheetRow) return;              /* sheet already closing — ignore stray taps */
-    values[sheetRow.id].unit = b.dataset.u;
-    lastPickedUnit = b.dataset.u;
-    const ui = rowEls[sheetRow.id];
-    if(ui) setUnitLabel(ui.unitEl, b.dataset.u);
-    const id = sheetRow.id;
-    closeSheet();
-    onChange(id);
-  });
-}
-document.getElementById('sheetClear').onclick = () => {
-  if(!sheetRow) return;
-  values[sheetRow.id].unit = '';
-  const ui = rowEls[sheetRow.id];
-  if(ui) setUnitLabel(ui.unitEl, '');
-  closeSheet();
-  onChange(null);
-};
-$scrim.onclick = closeSheet;
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && sheetRow) closeSheet(); });
-
 function buildRows(){
+  closeEditor();
   $rows.innerHTML = '';
   for(const k in rowEls) delete rowEls[k];
-  visible().forEach(r => {
-    const v = values[r.id];
+  /* the amount column is the one that needs telling what it's counting in */
+  $legend.children[1].textContent = 'Amount · ' + UNITS[data.unit].label;
+  $legend.children[3].textContent = 'per ' + perUnit();
+
+  visible().forEach((r, i) => {
+    const v = vals()[r.id];
+    const name = labelOf(r, i);
     const el = document.createElement('div');
     el.className = 'row';
     paint(el, r.color);
     el.innerHTML = `
-      <div class="row-top">
-        <span class="row-name"></span>
-        <span class="row-calc"></span>
-        <button class="row-clear" aria-label="Clear this row">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3Z"/></svg>
-        </button>
-      </div>
-      <div class="fields">
-        <div class="field"><label>Amount</label>
-          <input class="f-amount" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next"></div>
-        <div class="field"><label>Unit</label>
-          <button class="unit-btn f-unit" type="button" aria-haspopup="dialog"></button></div>
-        <div class="field price"><label>Price</label>
-          <input class="f-price" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"></div>
-      </div>`;
-    const nameEl  = el.querySelector('.row-name');
-    const calcEl  = el.querySelector('.row-calc');
-    const amountEl= el.querySelector('.f-amount');
-    const unitEl  = el.querySelector('.f-unit');
-    const priceEl = el.querySelector('.f-price');
-    const clearEl = el.querySelector('.row-clear');
+      <div class="tag"></div>
+      <input class="f-amount" type="text" inputmode="decimal" autocomplete="off"
+             enterkeyhint="next" placeholder="0">
+      <input class="f-price" type="text" inputmode="decimal" autocomplete="off"
+             enterkeyhint="done" placeholder="0.00">
+      <div class="out"><span class="num"></span><span class="rank"></span></div>
+      <div class="verdict"><span class="big"></span><span class="per"></span><span class="say"></span></div>`;
 
-    setRowName(nameEl, r);
+    const tagEl    = el.querySelector('.tag');
+    const amountEl = el.querySelector('.f-amount');
+    const priceEl  = el.querySelector('.f-price');
+
+    /* an option's tag is the way in to renaming, recolouring and removing it.
+       A retailer's is a label — its roster lives in Manage. */
+    if(data.mode === 'options'){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tagbtn';
+      b.textContent = name;
+      b.setAttribute('aria-label', `Edit ${name}`);
+      b.onclick = () => toggleEditor(r, el);
+      tagEl.appendChild(b);
+    }else{
+      tagEl.textContent = name;
+      tagEl.title = name;
+      if(!r.name.trim()) tagEl.classList.add('untitled');
+    }
+
     amountEl.value = v.amount;
     priceEl.value = v.price;
-    setUnitLabel(unitEl, v.unit);
+    amountEl.setAttribute('aria-label', `${name} amount in ${UNITS[data.unit].label}`);
+    priceEl .setAttribute('aria-label', `${name} price`);
 
-    bindNumeric(amountEl, val => {
-      v.amount = val;
-      /* offer the last unit the user actually picked to a row that hasn't
-         had one chosen yet, as soon as they start entering it — replaces
-         having to reopen the sheet for every retailer. Only ever fires once
-         per row (v.unit stops being empty right after), never overrides an
-         explicit choice, and never crosses the round's dimension lock. */
-      if(val && !v.unit && lastPickedUnit &&
-         (!lockDim || UNITS[lastPickedUnit].dim === lockDim)){
-        v.unit = lastPickedUnit;
-        setUnitLabel(unitEl, v.unit);
-      }
-      onChange(r.id);
-    });
-    bindNumeric(priceEl,  val => { v.price  = val; onChange(r.id); });
-    unitEl  .addEventListener('click', () => openSheet(r));
-    clearEl .addEventListener('click', () => {
-      v.amount = ''; v.unit = ''; v.price = '';
-      amountEl.value = ''; priceEl.value = ''; setUnitLabel(unitEl, '');
-      onChange(null);
-    });
+    bindNumeric(amountEl, val => { v.amount = val; onChange(); });
+    bindNumeric(priceEl,  val => { v.price  = val; onChange(); });
 
-    rowEls[r.id] = {el, nameEl, calcEl, unitEl, clearEl};
+    rowEls[r.id] = {el, tagEl, amountEl, priceEl,
+                    numEl: el.querySelector('.num'),
+                    rankEl: el.querySelector('.rank'),
+                    bigEl: el.querySelector('.big'),
+                    perEl: el.querySelector('.per'),
+                    sayEl: el.querySelector('.say')};
     $rows.appendChild(el);
   });
 }
@@ -238,72 +253,42 @@ function bindNumeric(el, commit){
   el.addEventListener('keydown', e => { if(e.key === 'Enter') el.blur(); });
 }
 
-function setRowName(el, r){
-  const n = r.name.trim();
-  if(n){ el.textContent = n; }
-  else { el.innerHTML = '<span class="untitled">Untitled</span>'; }
-}
-
-function onChange(changedId){ recompute(changedId); save(); }
+function onChange(){ recompute(); save(); }
 
 /* ============ core ============ */
 function rowResult(r){
-  const v = values[r.id];
-  const a = num(v.amount), p = num(v.price);
-  const up = unitPrice(a, v.unit, p);
-  if(up === null) return {state:'incomplete'};
-  const dim = UNITS[v.unit].dim;
-  return {state:'ok', up, dim};
+  const v = vals()[r.id];
+  const up = unitPrice(num(v.amount), data.unit, num(v.price));
+  return up === null ? {state:'incomplete'} : {state:'ok', up};
 }
 
-function recompute(changedId){
-  const results = visible().map(r => ({r, ...rowResult(r)}));
-  const complete = results.filter(x => x.state === 'ok');
-
-  /* lock: first completed row fixes the dimension for the round */
-  if(lockDim && !complete.some(x => x.dim === lockDim)) lockDim = null;
-  if(!lockDim && complete.length){
-    const seed = complete.find(x => x.r.id === changedId) || complete[0];
-    lockDim = seed.dim;
-  }
-
-  const inPlay = complete.filter(x => x.dim === lockDim).sort((a,b) => a.up - b.up);
+function recompute(){
+  const results = visible().map((r, i) => ({r, i, ...rowResult(r)}));
+  const inPlay = results.filter(x => x.state === 'ok').sort((a,b) => a.up - b.up);
   const best = inPlay[0] || null;
 
   results.forEach(x => {
     const ui = rowEls[x.r.id]; if(!ui) return;
-    const v = values[x.r.id];
-    const dirty = !!(v.amount || v.unit || v.price);
-    ui.clearEl.disabled = !dirty;
-    setUnitLabel(ui.unitEl, v.unit);
+    const win = !!best && x.r.id === best.r.id;
+    ui.el.classList.toggle('filled', x.state === 'ok' && !win);
+    ui.el.classList.toggle('win', win);
+    ui.sayEl.textContent = '';
+    ui.rankEl.textContent = '';
 
-    if(x.state === 'ok' && x.dim !== lockDim){
-      ui.el.classList.add('excluded');
-      ui.el.classList.remove('filled');
-      ui.calcEl.className = 'row-note';
-      ui.calcEl.textContent = `not ${DIM_NAME[lockDim]}`;
-    }else if(x.state === 'ok'){
-      ui.el.classList.remove('excluded');
-      ui.el.classList.add('filled');
-      ui.calcEl.className = 'row-calc' + (best && x.r.id === best.r.id ? ' best' : '');
-      ui.calcEl.textContent = `${fmt(x.up)} / ${DISPLAY[x.dim].unit}`;
-    }else{
-      ui.el.classList.remove('excluded','filled');
-      ui.calcEl.className = 'row-calc';
-      ui.calcEl.textContent = '';
+    if(x.state !== 'ok'){ ui.numEl.textContent = ''; return; }
+    /* rank 1 needs no numeral — the row it's on is the loud one */
+    const rank = inPlay.findIndex(y => y.r.id === x.r.id) + 1;
+    if(rank > 1) ui.rankEl.textContent = String(rank);
+    if(!win){
+      const t = fmt(x.up);
+      ui.numEl.textContent = t;
+      ui.numEl.classList.toggle('long', t.length > 6);
     }
   });
 
-  if(lockDim && inPlay.length){
-    $lock.classList.add('on');
-    $lockText.textContent = LOCK_COPY[lockDim];
-  }else $lock.classList.remove('on');
-
-  $clearAll.disabled = !retailers.some(r => {
-    const v = values[r.id]; return v.amount || v.unit || v.price;
-  });
-
-  renderWinner(inPlay);
+  $clearAll.disabled = !Object.values(vals()).some(v => v.amount || v.price);
+  renderWinner(inPlay, perUnit());
+  syncSum();
 }
 
 /* counts the headline figure from the old value to the new one — the maths is
@@ -326,96 +311,168 @@ function countTo(el, from, to){
   numAnim = requestAnimationFrame(step);
 }
 
-function renderWinner(inPlay){
+/* The result used to be a 160px card pinned above the list. It is now the
+   winning row itself: same colour, same number, nowhere else for it to live.
+   That is what buys back the height that made this app a scroller. */
+function renderWinner(inPlay, unit){
   if(!inPlay.length){
-    $winner.className = '';
-    $winner.style.removeProperty('--rc');
+    lastWinnerId = null; lastWinnerUp = null; sumText = '';
     /* the resting state carries the last thing you worked out, so opening the
        app cold shows something of yours rather than an empty box */
-    const last = lastResult && lastResult.name
-      ? `<div class="w-last">Last time · ${esc(lastResult.name)} at ${esc(lastResult.price)} per ${esc(lastResult.unit)}</div>`
-      : '';
-    $winner.innerHTML = `<div class="w-empty">Fill in a row to start comparing.</div>${last}`;
-    lastWinnerId = null;
-    lastWinnerUp = null;
+    $hint.textContent = lastResult && lastResult.name
+      ? `Last time · ${lastResult.name} at ${lastResult.price} per ${lastResult.unit}`
+      : 'Prices normalise to a litre, a kilo, or a piece.';
     return;
   }
+  $hint.textContent = 'Prices normalise to a litre, a kilo, or a piece.';
 
   const best = inPlay[0], second = inPlay[1];
-  const unit = DISPLAY[best.dim].unit;
-  const v = values[best.r.id];
+  const ui = rowEls[best.r.id];
+  const name = labelOf(best.r, best.i);
+  const v = vals()[best.r.id];
   const changed = !!lastWinnerId && lastWinnerId !== best.r.id;
 
-  let verdict, rank = '';
-  const stats = [];
-
-  /* per kg is the right basis for comparing and a poor one for picturing a
-     pack measured in grams, so show both — but never as a second headline */
-  if(v.unit === 'g' || v.unit === 'ml'){
-    stats.push([fmt(best.up / 10), `per 100 ${v.unit}`]);
-  }
-
+  const bits = [];
   if(!second){
-    verdict = 'Only one row filled. Add another to compare.';
+    bits.push('Only row filled — add another to compare');
   }else{
-    /* name the runner-up in its own colour so the row it means is findable
-       without reading. 4.5:1 because this is text, not an outline. */
-    const c = edgeColor(fillColor(second.r.color), undefined, 4.5);
-    const other = `<span class="who" style="color:${esc(c)}">${esc(second.r.name.trim() || 'Untitled')}</span>`;
+    const other = labelOf(second.r, second.i);
     if(eq(best.up, second.up)){
-      verdict = `Same price as ${other}.`;
+      bits.push(`Same price as ${esc(other)}`);
     }else{
       const pct = ((second.up - best.up) / second.up) * 100;
-      verdict = `<b>${pct.toFixed(pct < 10 ? 1 : 0)}%</b> cheaper than ${other}`;
+      bits.push(`<b>${pct.toFixed(pct < 10 ? 1 : 0)}%</b> cheaper than ${esc(other)}`);
+      /* a percentage is abstract in an aisle; the money you keep on the pack in
+         your hand, at the runner-up's rate, is the number you decide on */
+      const packs = (num(v.amount) * UNITS[data.unit].to) / DISPLAY[UNITS[data.unit].dim].per;
+      const saving = second.up * packs - num(v.price);
+      /* money, not a unit price — fmt() opens out to three and four decimals
+         below 1, which is right for a rate and wrong for what you keep */
+      if(saving > 0 && isFinite(saving)) bits.push(`save ${saving.toFixed(2)}`);
     }
-    /* a percentage is abstract in an aisle; the money you keep on the pack in
-       your hand, at the runner-up's rate, is the number you decide on */
-    const packs = (num(v.amount) * UNITS[v.unit].to) / DISPLAY[best.dim].per;
-    const saving = second.up * packs - num(v.price);
-    if(saving > 0 && isFinite(saving)){
-      stats.push([fmt(saving), `saved on ${v.amount} ${UNITS[v.unit].label}`]);
-    }
-    /* the rank qualifies the name, so it sits with it rather than in the stats */
-    if(inPlay.length > 2) rank = `<span class="w-rank">cheapest of ${inPlay.length}</span>`;
+  }
+  /* per kg is the right basis for comparing and a poor one for picturing a
+     pack measured in grams, so show both — but never as a second headline */
+  if(data.unit === 'g' || data.unit === 'ml'){
+    bits.push(`${fmt(best.up / 10)} per 100 ${UNITS[data.unit].label}`);
   }
 
-  /* #1 and #2 are already named above — this is what's beyond that, so the
-     whole field is visible without duplicating the verdict line. Forced to
-     one scrollable line regardless of roster size, so it can never grow
-     the card the way an always-taller list would. */
-  const more = inPlay.length > 2
-    ? `then ${inPlay.slice(2).map(x => `${esc(x.r.name.trim() || 'Untitled')} ${fmt(x.up)}`).join(', ')}`
-    : '';
-
-  paint($winner, best.r.color);
-  $winner.className = 'live' + (changed ? ' flash' : '');
-  $winner.innerHTML =
-    `<div class="w-main">
-       <div class="w-head"><span class="w-name">${esc(best.r.name.trim() || 'Untitled')}</span>${rank}</div>
-       <div class="w-price"><span class="w-num"></span><span class="w-unit">per ${unit}</span></div>
-       <div class="w-verdict">${verdict}</div>
-       ${more ? `<div class="w-more">${more}</div>` : ''}
-     </div>
-     ${stats.length ? `<div class="w-stats">${stats.map(([n, l]) =>
-        `<div class="w-stat"><b>${n}</b><span>${l}</span></div>`).join('')}</div>` : ''}`;
-
-  countTo($winner.querySelector('.w-num'), lastWinnerUp, best.up);
+  ui.sayEl.innerHTML = bits.join(' <i>·</i> ');
+  ui.perEl.textContent = 'per ' + unit;
+  if(changed && !calm()){
+    ui.el.classList.remove('flash');
+    void ui.el.offsetWidth;           /* restart the animation on a re-render */
+    ui.el.classList.add('flash');
+  }
+  countTo(ui.bigEl, lastWinnerUp, best.up);
 
   /* a short tick when the lead changes hands — in a noisy aisle you feel it
      before you read it */
   if(changed && !calm() && navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
 
+  sumText = `<span class="dot" style="background:${esc(fillColor(best.r.color))}"></span>` +
+            `<b>${esc(name)}</b> ${fmt(best.up)} / ${esc(unit)}` +
+            (second && !eq(best.up, second.up)
+              ? ` · ${(((second.up - best.up) / second.up) * 100).toFixed(0)}% cheaper` : '');
   lastWinnerId = best.r.id;
   lastWinnerUp = best.up;
-  lastResult = {name: best.r.name.trim() || 'Untitled', price: fmt(best.up), unit};
+  lastResult = {name, price: fmt(best.up), unit};
   store.set('upc:last', lastResult);
 }
-function esc(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ============ the fallback one-liner ============ */
+/* Everything fits on one screen, so normally the winning row is in view and
+   this never appears. It exists for the one case the redesign can't remove:
+   a short phone with the keyboard up, typing into the last row. */
+function syncSum(){
+  const ui = lastWinnerId && rowEls[lastWinnerId];
+  if(!ui || !sumText){ $sum.classList.remove('on'); $sum.innerHTML = ''; return; }
+  /* measured against the unit strip, not the whole pinned block — #sum sits
+     inside that block, so including it would make showing it move the very
+     threshold that decides whether to show it */
+  const head = $units.getBoundingClientRect().bottom;
+  const r = ui.el.getBoundingClientRect();
+  const off = r.bottom < head + 4 || r.top > (innerHeight - 8);
+  if(off && $sum.innerHTML !== sumText) $sum.innerHTML = sumText;
+  $sum.classList.toggle('on', off);
+}
+let sumTick = null;
+const queueSum = () => {
+  if(sumTick) return;
+  sumTick = requestAnimationFrame(() => { sumTick = null; syncSum(); });
+};
+addEventListener('scroll', queueSum, {passive:true});
+addEventListener('resize', queueSum);
+if(window.visualViewport) visualViewport.addEventListener('resize', queueSum);
+
+/* ============ the option editor ============ */
+/* An option is a colour and a letter until you decide otherwise, so everything
+   you might want to change about one lives behind its tag rather than costing
+   width in the row. */
+let editorFor = null;
+function closeEditor(){
+  const open = $rows.querySelector('.editor');
+  if(open) open.remove();
+  editorFor = null;
+}
+function toggleEditor(r, rowEl){
+  if(editorFor === r.id){ closeEditor(); return; }
+  closeEditor();
+  editorFor = r.id;
+  const ed = document.createElement('div');
+  ed.className = 'editor';
+  paint(ed, r.color);
+  ed.innerHTML = `
+    <input type="text" value="${esc(r.name)}" placeholder="Name (optional)" maxlength="24" aria-label="Option name">
+    <div class="palette open">${PALETTE.map(c =>
+      `<button style="background:${c}" data-c="${c}" aria-pressed="${c===r.color}" aria-label="Colour ${c}"></button>`).join('')}</div>
+    <div class="ed-actions">
+      <button class="mini del" aria-label="Remove option">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 21V7h10v14Zm2-2h6V9H9ZM8 4h3l1-1h1l1 1h3v2H8Z"/></svg></button>
+      <button class="done">Done</button>
+    </div>`;
+  const input = ed.querySelector('input');
+  input.oninput = () => {
+    r.name = input.value;
+    const btn = rowEls[r.id] && rowEls[r.id].tagEl.querySelector('.tagbtn');
+    if(btn) btn.textContent = labelOf(r, visible().indexOf(r));
+    save(); recompute();
+  };
+  ed.querySelectorAll('.palette button').forEach(b => b.onclick = () => {
+    r.color = b.dataset.c; save(); buildRows(); recompute();
+  });
+  ed.querySelector('.del').onclick = () => {
+    const i = data.options.indexOf(r);
+    if(i > -1) data.options.splice(i, 1);
+    delete data.optionValues[r.id];
+    if(!data.options.length) addOption();
+    lastWinnerId = null; lastWinnerUp = null;
+    save(); buildRows(); recompute();
+  };
+  ed.querySelector('.done').onclick = closeEditor;
+  rowEl.after(ed);
+  input.focus({preventScroll:true});
+}
+function addOption(){
+  if(data.options.length >= 8) return false;
+  const id = uid();
+  data.options.push({id, name:'', color: PALETTE[data.options.length % PALETTE.length]});
+  data.optionValues[id] = {amount:'', price:''};
+  return true;
+}
+$addOption.onclick = () => {
+  if(!addOption()) return;
+  save(); buildRows(); recompute();
+  const rows = $rows.querySelectorAll('.row');
+  const last = rows[rows.length - 1];
+  if(last) last.querySelector('.f-amount').focus();
+};
 
 /* ============ manage retailers ============ */
 function buildManage(){
   $manageBody.innerHTML = '';
-  retailers.forEach((r,i) => {
+  data.retailers.forEach((r,i) => {
     const wrap = document.createElement('div');
     const eyeOn  = '<path d="M12 5c5 0 9 4.5 9 7s-4 7-9 7-9-4.5-9-7 4-7 9-7Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>';
     const eyeOff = '<path d="M3.3 2.3 1.9 3.7l3 3C3.1 8.2 2 10.2 2 12c0 2.5 4 7 10 7 1.9 0 3.5-.45 4.9-1.15l3.4 3.4 1.4-1.4ZM12 17c-4.4 0-7.4-3.1-8-5 .35-1.1 1.1-2.3 2.3-3.3l2.2 2.2A4 4 0 0 0 13.1 16Zm0-10c4.4 0 7.4 3.1 8 5-.3.95-.9 2-1.9 2.9l-2.6-2.6A4 4 0 0 0 10.7 7.2Z"/>';
@@ -431,7 +488,7 @@ function buildManage(){
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">${r.hidden ? eyeOff : eyeOn}</svg></button>
         <button class="mini up" aria-label="Move up"${i===0?' disabled':''}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8l5 5H7Z"/></svg></button>
-        <button class="mini down" aria-label="Move down"${i===retailers.length-1?' disabled':''}>
+        <button class="mini down" aria-label="Move down"${i===data.retailers.length-1?' disabled':''}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-5-5h10Z"/></svg></button>
         <button class="mini del" aria-label="Remove retailer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 21V7h10v14Zm2-2h6V9H9ZM8 4h3l1-1h1l1 1h3v2H8Z"/></svg></button>
@@ -452,7 +509,6 @@ function buildManage(){
     nameInput.oninput = e => {
       const was = !!r.name.trim();
       r.name = e.target.value;
-      if(rowEls[r.id]) setRowName(rowEls[r.id].nameEl, r);
       /* only re-sort when it crosses the titled/untitled boundary, so
          the field doesn't lose focus mid-typing */
       if(was !== !!r.name.trim()){
@@ -461,13 +517,13 @@ function buildManage(){
         if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
         return;
       }
-      save(); recompute();
+      save(); buildRows(); recompute();
     };
     nameInput.dataset.id = r.id;
     wrap.querySelector('.up').onclick = () => move(i,-1);
     wrap.querySelector('.down').onclick = () => move(i, 1);
     wrap.querySelector('.del').onclick = () => {
-      retailers.splice(i,1); delete values[r.id];
+      data.retailers.splice(i,1); delete data.values[r.id];
       save(); buildRows(); buildManage(); recompute();
     };
     $manageBody.appendChild(wrap);
@@ -478,8 +534,8 @@ function buildManage(){
   add.textContent = 'Add retailer';
   add.onclick = () => {
     const id = uid();
-    retailers.push({id, name:'', color:PALETTE[retailers.length % PALETTE.length], hidden:false});
-    values[id] = {amount:'',unit:'',price:''};
+    data.retailers.push({id, name:'', color:PALETTE[data.retailers.length % PALETTE.length], hidden:false});
+    data.values[id] = {amount:'',price:''};
     normalizeOrder(); save(); buildRows(); buildManage(); recompute();
     const input = $manageBody.querySelector(`input[data-id="${id}"]`);
     if(input) input.focus();
@@ -501,26 +557,29 @@ function buildManage(){
       }, 4000);
       return;
     }
-    retailers = DEFAULTS.map(d => ({id:uid(), ...d, hidden:false}));
-    values = {};
-    retailers.forEach(r => values[r.id] = {amount:'',unit:'',price:''});
-    lockDim = null; lastPickedUnit = null; lastWinnerId = null;
+    data.retailers = DEFAULTS.map(d => ({id:uid(), ...d, hidden:false}));
+    data.values = {};
+    seedValues();
+    lastWinnerId = null; lastWinnerUp = null;
     save(); buildRows(); buildManage(); recompute();
   };
   $manageBody.appendChild(reset);
 }
 function move(i,d){
   const j = i + d;
-  if(j < 0 || j >= retailers.length) return;
-  [retailers[i], retailers[j]] = [retailers[j], retailers[i]];
+  if(j < 0 || j >= data.retailers.length) return;
+  [data.retailers[i], data.retailers[j]] = [data.retailers[j], data.retailers[i]];
   normalizeOrder();
   save(); buildRows(); buildManage(); recompute();
 }
 
 /* ============ chrome ============ */
+/* clears the tab you're looking at — the other one is a different comparison,
+   and there's no reason a Retailers round should wipe an Options round */
 $clearAll.onclick = () => {
-  retailers.forEach(r => values[r.id] = {amount:'',unit:'',price:''});
-  lockDim = null; lastPickedUnit = null; lastWinnerId = null;
+  const map = vals();
+  for(const id in map) map[id] = {amount:'', price:''};
+  lastWinnerId = null; lastWinnerUp = null;
   buildRows(); recompute(); save();
 };
 document.getElementById('theme').onclick = () => {
